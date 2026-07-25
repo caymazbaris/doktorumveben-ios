@@ -27,16 +27,17 @@ workflows:
           npx cap sync ios
       - name: Native hazırlık (izinler + entitlement + PrivacyInfo + iPhone-only)
         script: node scripts/prepare-native-ios.mjs
-      - name: CocoaPods (Podfile varsa kur)
-        # `cap sync ios` pod install'ı zaten çalıştırır; bu adım Podfile'ı NEREDE olursa bulup
-        # güvenceye alır ve YOKSA hata vermeden atlar ("No Podfile found" build'i kırmasın).
+      - name: CocoaPods + yapı teşhisi (.xcworkspace pod install ile üretilir)
         script: |
+          echo "=== ios/ (2 seviye) ==="; find ios -maxdepth 2 2>/dev/null || echo "ios/ YOK"
+          echo "=== Podfile ara ==="; find . -name Podfile -not -path '*/node_modules/*' 2>/dev/null
+          echo "=== xcworkspace ara ==="; find . -name "*.xcworkspace" -not -path '*/node_modules/*' 2>/dev/null
           PODFILE=$(find . -name Podfile -not -path '*/node_modules/*' | head -1)
           if [ -n "$PODFILE" ]; then
-            echo "Podfile bulundu: $PODFILE"
-            cd "$(dirname "$PODFILE")" && pod install
+            echo "Podfile: $PODFILE → pod install"
+            cd "$(dirname "$PODFILE")" && pod install --repo-update
           else
-            echo "Podfile yok — cap sync pod kurulumunu zaten yapmış olabilir, atlanıyor."
+            echo "UYARI: Podfile yok — workspace üretilemez, cap add ios düzgün çalışmamış olabilir."
           fi
       - name: Kod imzalama (yoksa sertifika + profil OLUŞTUR)
         # --create: ilk derlemede dağıtım sertifikası + provisioning profile YOKSA QNB/ASC API
@@ -51,7 +52,15 @@ workflows:
           cd ios/App
           agvtool new-version -all $BUILD_NUMBER
       - name: IPA derle
-        script: xcode-project build-ipa --workspace ios/App/App.xcworkspace --scheme App
+        script: |
+          WS=$(find . -name "*.xcworkspace" -not -path '*/node_modules/*' | head -1)
+          if [ -z "$WS" ]; then
+            echo "HATA: .xcworkspace hiçbir yerde yok (pod install workspace üretmedi)."
+            echo "=== ios/ yapısı ==="; find ios -maxdepth 3 2>/dev/null
+            exit 1
+          fi
+          echo "Workspace: $WS"
+          xcode-project build-ipa --workspace "$WS" --scheme App
     artifacts:
       - build/ios/ipa/*.ipa
     publishing:
