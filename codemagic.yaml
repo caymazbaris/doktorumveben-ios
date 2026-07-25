@@ -18,9 +18,6 @@ workflows:
       node: 22
       xcode: latest
       cocoapods: default
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.doktorumveben.app
     scripts:
       - name: Bağımlılıkları kur
         script: npm install
@@ -33,8 +30,14 @@ workflows:
       - name: CocoaPods bağımlılıkları
         script: |
           cd ios/App && pod install
-      - name: İmza profillerini uygula
-        script: xcode-project use-profiles
+      - name: Kod imzalama (yoksa sertifika + profil OLUŞTUR)
+        # --create: ilk derlemede dağıtım sertifikası + provisioning profile YOKSA QNB/ASC API
+        # anahtarıyla otomatik oluşturur. "No matching profiles found" hatasının çözümü budur.
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "com.doktorumveben.app" --type IOS_APP_STORE --create
+          keychain add-certificates
+          xcode-project use-profiles
       - name: Build numarasını artır
         script: |
           cd ios/App
