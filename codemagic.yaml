@@ -27,9 +27,17 @@ workflows:
           npx cap sync ios
       - name: Native hazırlık (izinler + entitlement + PrivacyInfo + iPhone-only)
         script: node scripts/prepare-native-ios.mjs
-      - name: CocoaPods bağımlılıkları
+      - name: CocoaPods (Podfile varsa kur)
+        # `cap sync ios` pod install'ı zaten çalıştırır; bu adım Podfile'ı NEREDE olursa bulup
+        # güvenceye alır ve YOKSA hata vermeden atlar ("No Podfile found" build'i kırmasın).
         script: |
-          cd ios/App && pod install
+          PODFILE=$(find . -name Podfile -not -path '*/node_modules/*' | head -1)
+          if [ -n "$PODFILE" ]; then
+            echo "Podfile bulundu: $PODFILE"
+            cd "$(dirname "$PODFILE")" && pod install
+          else
+            echo "Podfile yok — cap sync pod kurulumunu zaten yapmış olabilir, atlanıyor."
+          fi
       - name: Kod imzalama (yoksa sertifika + profil OLUŞTUR)
         # --create: ilk derlemede dağıtım sertifikası + provisioning profile YOKSA QNB/ASC API
         # anahtarıyla otomatik oluşturur. "No matching profiles found" hatasının çözümü budur.
