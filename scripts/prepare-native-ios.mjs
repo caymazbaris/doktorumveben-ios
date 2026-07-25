@@ -58,19 +58,26 @@ write(plistPath, plist);
 say(`Info.plist izin/uyum anahtarları yazıldı${addedUsage.length ? ' (' + addedUsage.join(', ') + ')' : ' (zaten vardı)'}.`);
 
 // ── 2) App.entitlements (push) ──────────────────────────────────────────────
+// KRİTİK: aps-environment SADECE Firebase gerçekten yapılandırıldığında (firebase/
+// GoogleService-Info.plist mevcutken) yazılır. Aksi halde profilde Push capability
+// olmadığı için Xcode arşivi "requires a provisioning profile with the Push
+// Notifications feature" ile REDDEDER. Push kurulunca (o .plist eklenince) hem bu
+// entitlement hem de Apple Developer'da App ID'ye Push capability gerekir.
 const entPath = path.join(appDir, 'App.entitlements');
-if (!fs.existsSync(entPath)) {
-  write(entPath, `<?xml version="1.0" encoding="UTF-8"?>
+const pushReady = fs.existsSync(path.join(root, 'firebase/GoogleService-Info.plist'));
+const entInner = pushReady
+  ? '\t<key>aps-environment</key>\n\t<string>production</string>\n'
+  : '';
+write(entPath, `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>aps-environment</key>
-	<string>production</string>
-</dict>
+${entInner}</dict>
 </plist>
 `);
-  say('App.entitlements oluşturuldu (aps-environment: production).');
-}
+say(pushReady
+  ? 'App.entitlements yazıldı (aps-environment: production — push aktif).'
+  : 'App.entitlements yazıldı (push YOK — firebase/GoogleService-Info.plist eklenince otomatik açılır).');
 
 // ── 3) PrivacyInfo.xcprivacy (ZORUNLU privacy manifest, YOL B = tracking yok) ─
 const privPath = path.join(appDir, 'PrivacyInfo.xcprivacy');
