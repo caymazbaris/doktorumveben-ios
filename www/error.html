@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Doktorumveben</title>
+  <style>
+    :root { --teal:#0891B2; --ink:#0f172a; --muted:#64748b; }
+    * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    html,body { margin:0; height:100%; }
+    body {
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+      background:#ffffff; color:var(--ink);
+      display:flex; align-items:center; justify-content:center;
+      padding:24px calc(24px + env(safe-area-inset-left)) calc(24px + env(safe-area-inset-bottom));
+      text-align:center;
+    }
+    .card { max-width:340px; }
+    .logo {
+      width:72px; height:72px; margin:0 auto 20px; border-radius:20px;
+      background:linear-gradient(135deg,#0891B2,#0e7490);
+      display:flex; align-items:center; justify-content:center;
+      box-shadow:0 10px 30px rgba(8,145,178,.25);
+    }
+    .logo svg { width:40px; height:40px; }
+    h1 { font-size:20px; margin:0 0 8px; }
+    p { color:var(--muted); font-size:15px; line-height:1.5; margin:0 0 24px; }
+    button {
+      appearance:none; border:0; cursor:pointer;
+      background:var(--teal); color:#fff; font-size:16px; font-weight:600;
+      padding:14px 28px; border-radius:14px; width:100%;
+      transition:transform .08s ease, opacity .2s ease;
+    }
+    button:active { transform:scale(.97); opacity:.9; }
+    .hint { margin-top:16px; font-size:13px; color:#94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 12h3l2 5 4-11 2 6h4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <h1>İnternet bağlantısı yok</h1>
+    <p>Doktorumveben'e ulaşmak için internet bağlantısı gerekiyor. Bağlantını kontrol edip tekrar dene.</p>
+    <button onclick="location.reload()">Tekrar dene</button>
+    <div class="hint">Doktor ve hasta arasındaki bağ</div>
+  </div>
+</body>
+</html>

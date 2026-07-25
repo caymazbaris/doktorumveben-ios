@@ -1,0 +1,19 @@
+# Bağımlılıklar
+node_modules/
+
+# Capacitor native projeleri — her CI derlemesinde `cap add` ile sıfırdan üretilir
+ios/
+android/
+
+# İmza/gizli anahtarlar — ASLA commit'lenmemeli
+*.p8
+*.p12
+*.mobileprovision
+*.keystore
+*.jks
+firebase/GoogleService-Info.plist
+firebase/google-services.json
+
+# Sistem / log
+.DS_Store
+*.log

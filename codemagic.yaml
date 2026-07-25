@@ -1,0 +1,55 @@
+# Doktorumveben — Codemagic bulut CI ile Mac'siz iOS derleme
+# Kullanım: bu klasörü GitHub'a push et → codemagic.io'da repoyu bağla → bu dosya otomatik algılanır.
+# Ön koşullar (Apple Developer hesabı açıldıktan sonra):
+#   1) App Store Connect → Users and Access → Integrations → App Store Connect API → anahtar oluştur (.p8 indir)
+#   2) Codemagic → Teams → Integrations → App Store Connect → anahtarı "DoktorumvebenASC" adıyla ekle
+#   3) App Store Connect'te uygulamayı oluştur (Bundle ID: com.doktorumveben.app)
+#   4) Codemagic'te "Start new build" → ios-release → biter bitmez TestFlight'a otomatik yüklenir.
+# Not: İmza sertifikası + provisioning profile'ı Codemagic API anahtarıyla KENDİSİ üretir (Mac gerekmez).
+
+workflows:
+  ios-release:
+    name: iOS App Store (TestFlight)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: DoktorumvebenASC
+    environment:
+      node: 22
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.doktorumveben.app
+    scripts:
+      - name: Bağımlılıkları kur
+        script: npm install
+      - name: iOS platformunu ekle + senkronla
+        script: |
+          if [ ! -d ios ]; then npx cap add ios; fi
+          npx cap sync ios
+      - name: Native hazırlık (izinler + entitlement + PrivacyInfo + iPhone-only)
+        script: node scripts/prepare-native-ios.mjs
+      - name: CocoaPods bağımlılıkları
+        script: |
+          cd ios/App && pod install
+      - name: İmza profillerini uygula
+        script: xcode-project use-profiles
+      - name: Build numarasını artır
+        script: |
+          cd ios/App
+          agvtool new-version -all $BUILD_NUMBER
+      - name: IPA derle
+        script: xcode-project build-ipa --workspace ios/App/App.xcworkspace --scheme App
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+      email:
+        recipients:
+          - mybaris16@gmail.com
+        notify:
+          success: true
+          failure: true
