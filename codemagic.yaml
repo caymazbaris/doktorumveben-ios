@@ -15,6 +15,8 @@ workflows:
     integrations:
       app_store_connect: DoktorumvebenASC
     environment:
+      groups:
+        - ios_credentials   # Codemagic'te bu grupta CERTIFICATE_PRIVATE_KEY (Secure) tanımlı olmalı
       node: 22
       xcode: latest
       cocoapods: default
@@ -39,12 +41,19 @@ workflows:
           else
             echo "UYARI: Podfile yok — workspace üretilemez, cap add ios düzgün çalışmamış olabilir."
           fi
-      - name: Kod imzalama (yoksa sertifika + profil OLUŞTUR)
-        # --create: ilk derlemede dağıtım sertifikası + provisioning profile YOKSA QNB/ASC API
-        # anahtarıyla otomatik oluşturur. "No matching profiles found" hatasının çözümü budur.
+      - name: Kod imzalama (kalıcı özel anahtar + sertifika/profil OLUŞTUR)
+        # KRİTİK: --certificate-key olmadan CI her build'de yeni/efemer Mac'te çalıştığı için
+        # üretilen dağıtım sertifikasının ÖZEL ANAHTARI kaybolur → "Cannot save Signing
+        # Certificates without certificate private key" → imza yapılamaz.
+        # CERTIFICATE_PRIVATE_KEY (Codemagic 'ios_credentials' grubunda Secure env değişkeni)
+        # KALICI RSA anahtarını verir; böylece sertifika her build'de aynı anahtarla
+        # yeniden imzalanabilir. --create ilk seferde sertifika + provisioning profile üretir.
         script: |
           keychain initialize
-          app-store-connect fetch-signing-files "com.doktorumveben.app" --type IOS_APP_STORE --create
+          app-store-connect fetch-signing-files "com.doktorumveben.app" \
+            --type IOS_APP_STORE \
+            --certificate-key "@env:CERTIFICATE_PRIVATE_KEY" \
+            --create
           keychain add-certificates
           xcode-project use-profiles
       - name: Build numarasını artır
