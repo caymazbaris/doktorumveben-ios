@@ -18,7 +18,13 @@ struct DVBDoctorDetail: Decodable {
         let experience: Int?
         let about: String?
         let educationSchool: String?
-        let languages: String?
+        // Tur 241 KRİTİK: sunucu bunu DİZİ gönderiyor (["Türkçe"]). Burada `String?`
+        // yazılıydı; JSONDecoder diziyi String'e çözemeyip FIRLATIYOR ve tek bu alan
+        // yüzünden DVBDoctorDetail'in TAMAMI çözümlenemiyordu → profil ekranı her
+        // hekimde "Sunucudan beklenmeyen bir yanıt geldi" hatasına düşüyordu.
+        // (Alan şu an hiçbir yerde gösterilmiyor; kullanılmayan bir alan bütün ekranı
+        // götürdü. Tipini sunucuyla aynı tutun — String'e geri çevirmeyin.)
+        let languages: [String]?
         let specialties: [String]?
         let locations: [Location]?
         let appointmentTypes: [ServiceItem]?
