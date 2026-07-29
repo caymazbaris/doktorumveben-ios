@@ -5,6 +5,7 @@ import SwiftUI
 /// Sunucu her randevuyu tek çağrıda TAM gönderiyor (bitiş saati, adres, koordinat,
 /// hangi butonun gösterileceği) — Faz 4'teki cihaz takvimi ve çevrimdışı önbellek
 /// bu yüzden ikinci istek atmadan çalışacak.
+@MainActor
 struct DVBAppointmentsView: View {
 
     @EnvironmentObject private var session: DVBSession
@@ -106,6 +107,7 @@ struct DVBAppointmentsView: View {
 
 // MARK: - Detay
 
+@MainActor
 struct DVBAppointmentDetailView: View {
 
     let appointment: DVBAppointment
@@ -157,6 +159,37 @@ struct DVBAppointmentDetailView: View {
                     }
                 }
                 .disabled(busy)
+            }
+
+            // Tur 238 — cihaz yetenekleri. Web sayfasının yapamayacağı iki iş:
+            // randevuyu telefonun takvimine yazmak ve çevrimdışı çalışan yerel hatırlatma.
+            if let baslangic = current.startsAt, current.isPast != true {
+                Section("Telefonuma ekle") {
+                    Button {
+                        Task {
+                            toast = await DVBCalendarKit.takvimeEkle(
+                                baslik: "\(current.doctor ?? "Hekim") randevusu",
+                                baslangic: baslangic,
+                                sure: current.durationMinutes ?? 30,
+                                not: current.no.map { "Doktorumveben · Randevu no \($0)" }
+                            )
+                        }
+                    } label: {
+                        Label("Takvimime ekle", systemImage: "calendar.badge.plus")
+                    }
+                    Button {
+                        Task {
+                            toast = await DVBCalendarKit.hatirlatmaKur(
+                                baslik: "Yarın randevunuz var",
+                                govde: "\(current.doctor ?? "Hekim") · \(baslangic.dvbLong)",
+                                randevuZamani: baslangic,
+                                kimlik: current.no ?? String(current.id)
+                            )
+                        }
+                    } label: {
+                        Label("Bir gün önce hatırlat", systemImage: "bell.badge")
+                    }
+                }
             }
 
             if let toast {

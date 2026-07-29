@@ -161,6 +161,13 @@ const usageKeys = {
   // iOS'ta sessizce reddedilir (uygulama içinde buton hiç çalışmaz).
   NSLocationWhenInUseUsageDescription:
     'Size en yakın hekimleri sıralayabilmek için konumunuza erişim gerekir. Konumunuz kaydedilmez.',
+  // Tur 238 — Randevuyu telefonun KENDİ takvimine yazma (DVBCalendarKit).
+  // iOS 17 takvim iznini ikiye böldü: yalnız-yazma anahtarı olmadan iOS 17+'ta
+  // izin diyaloğu HİÇ açılmaz; eski anahtar da iOS 16 ve altı için gerekli.
+  NSCalendarsWriteOnlyAccessUsageDescription:
+    'Randevunuzu telefonunuzun takvimine ekleyebilmek için izin gerekir. Takviminiz okunmaz.',
+  NSCalendarsUsageDescription:
+    'Randevunuzu telefonunuzun takvimine ekleyebilmek için izin gerekir.',
 };
 let addedUsage = [];
 for (const [key, val] of Object.entries(usageKeys)) {

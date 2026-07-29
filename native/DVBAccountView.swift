@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Tur 235 — Hesap sekmesi: giriş, üyelik bilgisi, belgeler ve App Store 5.1.1(v)
 /// gereği UYGULAMA İÇİNDEN hesap silme.
+@MainActor
 struct DVBAccountView: View {
 
     @EnvironmentObject private var session: DVBSession

@@ -54,16 +54,15 @@ struct DVBDoctorDetail: Decodable {
     }
 }
 
-/// Tur 235 — Native hekim profili. Randevu adımı web'de açılır (rezervasyon akışı
-/// sunucu-render; native'e taşınması Faz 3'te). Böylece ilk sürümde bile hasta
-/// randevusunu GERÇEKTEN alabiliyor.
+/// Tur 235 — Native hekim profili.
+/// Tur 238 (Faz 3): randevu adımı da native oldu; artık WKWebView'a düşmüyor.
+@MainActor
 struct DVBDoctorDetailView: View {
 
     let doctor: DVBDoctor
 
     @State private var detail: DVBDoctorDetail?
     @State private var error: String?
-    @State private var showBooking = false
 
     var body: some View {
         ScrollView {
@@ -140,12 +139,6 @@ struct DVBDoctorDetailView: View {
         .navigationTitle(doctor.name ?? "Hekim")
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
-        .sheet(isPresented: $showBooking) {
-            DVBWebSheet(
-                url: DVBConfig.webBase.appendingPathComponent("doktor/\(doctor.slug)"),
-                title: doctor.name ?? "Randevu"
-            )
-        }
     }
 
     private var header: some View {
@@ -170,9 +163,7 @@ struct DVBDoctorDetailView: View {
     }
 
     private var bookingBar: some View {
-        Button {
-            showBooking = true
-        } label: {
+        NavigationLink(destination: DVBBookingView(doctor: doctor)) {
             Text("Randevu al")
                 .font(.headline)
                 .frame(maxWidth: .infinity)

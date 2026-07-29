@@ -8,6 +8,7 @@ struct DVBSpecialty: Decodable, Identifiable, Hashable {
 
 /// Tur 235 — Hekim arama. Giriş GEREKTİRMEZ; uygulamayı ilk açan (ve App Store
 /// denetçisi) hemen gerçek içerik görür.
+@MainActor
 struct DVBSearchView: View {
 
     @State private var query = ""

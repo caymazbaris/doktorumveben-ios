@@ -5,6 +5,7 @@ import SwiftUI
 /// Push ile bu liste AYRI şeylerdir: push kaçabilir (uygulama kapalı, izin yok,
 /// cihaz çevrimdışı), burası kalıcı geçmiştir. Sekme rozeti sunucudan gelen
 /// `meta.unread` ile beslenir.
+@MainActor
 struct DVBNotificationsView: View {
 
     @EnvironmentObject private var session: DVBSession
