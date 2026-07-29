@@ -112,3 +112,150 @@ workflows:
         notify:
           success: true
           failure: true
+
+  # ---------------------------------------------------------------------------
+  # Tur 241 — MAĞAZA EKRAN GÖRÜNTÜLERİ (App Store 2.3.8)
+  #
+  # Neden ayrı bir workflow: ekipte iPhone da Mac de yok, dolayısıyla mağaza
+  # görüntüsü çekilemiyordu. Elimizdeki eski görüntüler UYDURMA bir hekim
+  # ("Op. Dr. Ayşe Yılmaz") ve artık kullanılmayan WebView arayüzünü
+  # gösteriyordu — 2.3.8'den tekrar ret riski.
+  #
+  # Bu workflow Codemagic'in Mac mini'sinde Simulator açar, uygulamayı
+  # `-DVBScreenshot <ekran>` argümanıyla doğrudan hedef ekranda başlatır ve
+  # `simctl io screenshot` ile GERÇEK ekranı yakalar; veri de CANLI API'den
+  # gelir. Tek kare elle çizilmez.
+  #
+  # Release hattından KASITLI olarak ayrı: imza istemez (Simulator derlemesi),
+  # TestFlight'a hiçbir şey göndermez, bu yüzden burada çıkan bir hata
+  # yayın sürecini bozamaz.
+  # ---------------------------------------------------------------------------
+  ios-screenshots:
+    name: iOS Mağaza Ekran Görüntüleri (Simulator)
+    instance_type: mac_mini_m2
+    max_build_duration: 45
+    environment:
+      node: 22
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Bağımlılıkları kur
+        script: npm install --include=dev
+      - name: iOS platformunu ekle + senkronla
+        script: |
+          if [ ! -d ios ]; then npx cap add ios; fi
+          npx cap sync ios
+      - name: Marka ikonu + açılış ekranı üret
+        script: |
+          rm -f ios/.assets-generated
+          if npx capacitor-assets generate --ios --assetPath assets \
+               --iconBackgroundColor '#0891B2' --iconBackgroundColorDark '#0891B2' \
+               --splashBackgroundColor '#0891B2' --splashBackgroundColorDark '#0F172A'; then
+            touch ios/.assets-generated
+          fi
+      - name: Native hazırlık
+        script: node scripts/prepare-native-ios.mjs
+      - name: SwiftUI katmanını enjekte et
+        script: node scripts/inject-native-swift.mjs
+      - name: CocoaPods
+        script: |
+          PODFILE=$(find . -name Podfile -not -path '*/node_modules/*' | head -1)
+          cd "$(dirname "$PODFILE")" && pod install --repo-update
+      - name: Simulator için derle (imzasız)
+        script: |
+          set -e
+          WS=$(find . -name "*.xcworkspace" -not -path '*/node_modules/*' | head -1)
+          echo "Workspace: $WS"
+          xcodebuild -workspace "$WS" -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath /tmp/dd \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build
+          find /tmp/dd/Build/Products -maxdepth 2 -name "App.app" -type d
+      - name: Ekran görüntülerini yakala
+        script: |
+          set -e
+          BUNDLE=com.doktorumveben.app
+          APP=$(find /tmp/dd/Build/Products -maxdepth 2 -name "App.app" -type d | head -1)
+          if [ -z "$APP" ]; then echo "HATA: App.app bulunamadi"; exit 1; fi
+          echo "App: $APP"
+
+          echo "=== Mevcut cihaz tipleri (iPhone) ==="
+          xcrun simctl list devicetypes | grep -i iphone || true
+          echo "=== Mevcut runtime'lar ==="
+          xcrun simctl list runtimes | grep -i ios || true
+
+          # En yeni iOS runtime
+          RT=$(xcrun simctl list runtimes | grep -o 'com\.apple\.CoreSimulator\.SimRuntime\.iOS-[0-9-]*' | tail -1)
+          if [ -z "$RT" ]; then echo "HATA: iOS runtime yok"; exit 1; fi
+          echo "Runtime: $RT"
+
+          # Verilen adaylardan var olan İLK cihaz tipini seç
+          sec_tip() {
+            for id in "$@"; do
+              if xcrun simctl list devicetypes | grep -q "$id"; then echo "$id"; return 0; fi
+            done
+            return 1
+          }
+
+          # Apple bugün 6.9" istiyor; 6.5" ikinci set olarak kabul ediliyor.
+          DT_BUYUK=$(sec_tip \
+            com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro-Max \
+            com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro-Max \
+            com.apple.CoreSimulator.SimDeviceType.iPhone-15-Pro-Max \
+            com.apple.CoreSimulator.SimDeviceType.iPhone-14-Pro-Max) || { echo "HATA: Pro Max cihaz tipi yok"; exit 1; }
+          echo "Cihaz tipi: $DT_BUYUK"
+
+          UDID=$(xcrun simctl create "DVBShot" "$DT_BUYUK" "$RT")
+          echo "UDID: $UDID"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl ui "$UDID" appearance light || true
+          # Apple'ın kendi tanıtım saati 9:41 — tam dolu pil/sinyal, temiz durum çubuğu.
+          xcrun simctl status_bar "$UDID" override \
+            --time "09:41" --batteryState charged --batteryLevel 100 \
+            --cellularMode active --cellularBars 4 --wifiMode active --wifiBars 3 || true
+          xcrun simctl install "$UDID" "$APP"
+
+          OUT=screenshots/6.9-inch
+          mkdir -p "$OUT"
+
+          yakala() {   # $1=dosya  $2=ekran  $3=slug  $4=bekleme
+            echo "--- $1  (ekran=$2 slug=$3) ---"
+            xcrun simctl terminate "$UDID" "$BUNDLE" >/dev/null 2>&1 || true
+            xcrun simctl launch "$UDID" "$BUNDLE" -DVBScreenshot "$2" -DVBScreenshotDoctor "$3"
+            sleep "$4"
+            xcrun simctl io "$UDID" screenshot --type=png "$OUT/$1"
+            ls -la "$OUT/$1"
+          }
+
+          # Canlı API'den veri çekiliyor: ilk açılış için cömert bekleme.
+          yakala 01-hekim-ara.png            arama   erkan-kulduk-84ix  12
+          yakala 02-hekim-profili.png        profil  erkan-kulduk-84ix  12
+          yakala 03-randevu-takvimi.png      randevu erkan-kulduk-84ix  12
+          yakala 04-psikolog-profili.png     profil  ekin-sokmen-ymis   12
+          yakala 05-seans-takvimi.png        randevu ekin-sokmen-ymis   12
+
+          echo "=== Üretilen görüntüler ==="
+          ls -la "$OUT"
+          # Beklenen çözünürlük (6.9" = 1320x2868 ya da 6.7" = 1290x2796) log'a yazılsın.
+          for f in "$OUT"/*.png; do
+            python3 -c "
+import struct,sys
+p=sys.argv[1]
+d=open(p,'rb').read(33)
+w,h=struct.unpack('>II', d[16:24])
+print(p, '→', w, 'x', h)
+" "$f" || true
+          done
+
+          xcrun simctl shutdown "$UDID" || true
+    artifacts:
+      - screenshots/**/*.png
+    publishing:
+      email:
+        recipients:
+          - mybaris16@gmail.com
+        notify:
+          success: true
+          failure: true

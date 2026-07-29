@@ -10,6 +10,16 @@ struct DVBRootView: View {
     @StateObject private var session = DVBSession()
 
     var body: some View {
+        // Tur 241 — CI'da mağaza görüntüsü alınırken kök devralınır (bkz. DVBScreenshot.swift).
+        // Argüman yalnız Codemagic'ten gelir; normal kullanımda bu dal HİÇ çalışmaz.
+        if let ekran = DVBScreenshotMode.ekran {
+            DVBScreenshotHost(ekran: ekran, slug: DVBScreenshotMode.slug)
+        } else {
+            sekmeler
+        }
+    }
+
+    private var sekmeler: some View {
         TabView {
             DVBSearchView()
                 .tabItem { Label("Ara", systemImage: "magnifyingglass") }
