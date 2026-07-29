@@ -75,8 +75,22 @@ implemented natively (not just web):
 
 **Demo account**
 - Login: open the menu → "Giriş" (Sign in).
-- Phone / Email: `__________`  ·  Password / One-time code: `__________`
-  *(A working test login is provided; if you cannot receive the SMS code, use the credentials above.)*
+- Email: `apple.review@doktorumveben.com`  ·  Password: *entered in App Store Connect → App Review Information*
+- **No SMS or one-time code is required** for this account — signing in with the password above is enough.
+
+<!--
+İç not (Apple'a gitmiyor):
+- Hesap prod'da user #321, rol `patient`, `is_active=true`, `two_factor_enabled=FALSE`.
+- 2FA'yı bu hesapta ASLA açmayın. Açılırsa /api/v1/auth/login jeton yerine `requires_otp`
+  döner ve SMS bekler; prod'da tanımlı SMS sağlayıcısı YOK (Netgsm boş) → incelemeci
+  kalıcı olarak giriş yapamaz ve uygulama reddedilir.
+- Şifre kasten bu depoda TUTULMUYOR; yalnız App Store Connect'te saklanır.
+- Telefon 905550000000 bilinçli seçildi: oluşturmadan önce users ve patients tablolarında
+  çakışma olmadığı doğrulandı (kayıt akışı telefonu eşleşen misafir hasta kaydını YUTAR;
+  gerçek bir numara seçilse incelemeci başka birinin randevularını görebilirdi — yutulan
+  kayıt sayısı 0 olarak doğrulandı).
+-->
+
 
 **Payments**
 Appointment fees are payments for **real-world medical services** (Guideline 3.1.3(e)), processed
