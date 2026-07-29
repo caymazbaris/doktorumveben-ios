@@ -107,7 +107,7 @@ struct DVBNotificationsView: View {
 
     private func readAll() async {
         guard let token = session.token else { return }
-        _ = try? await DVBAPI.shared.post("my/notifications/read-all", token: token) as DVBMessage
+        let _: DVBMessage? = try? await DVBAPI.shared.post("my/notifications/read-all", token: token)
         await load()
     }
 }

@@ -116,7 +116,9 @@ struct DVBDoctorDetailView: View {
                                 ForEach(reviews) { r in
                                     VStack(alignment: .leading, spacing: 3) {
                                         HStack(spacing: 3) {
-                                            ForEach(0 ..< max(0, min(5, r.rating ?? 0)), id: \.self) { _ in
+                                            // Aralık DEĞİŞKEN: ForEach'e doğrudan Range vermek
+                                            // SwiftUI'da çalışma anında uyarı üretir → dizi ver.
+                                            ForEach(Array(0 ..< max(0, min(5, r.rating ?? 0))), id: \.self) { _ in
                                                 Image(systemName: "star.fill").font(.caption2)
                                                     .foregroundColor(.orange)
                                             }

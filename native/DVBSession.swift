@@ -57,7 +57,10 @@ final class DVBSession: ObservableObject {
     func signOut() {
         if let token {
             // Sunucudaki jetonu da düşür; başarısız olsa bile yerelde siliyoruz.
-            Task { _ = try? await DVBAPI.shared.post("auth/logout", token: token) as DVBMessage }
+            // Tip AÇIKÇA yazılır: `post` genelidir, `try?` ile `as` birlikte çıkarım yapamaz.
+            Task {
+                let _: DVBMessage? = try? await DVBAPI.shared.post("auth/logout", token: token)
+            }
         }
         DVBKeychain.delete()
         token = nil
