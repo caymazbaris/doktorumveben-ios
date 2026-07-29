@@ -157,16 +157,33 @@ workflows:
         script: node scripts/prepare-native-ios.mjs
       - name: SwiftUI katmanını enjekte et
         script: node scripts/inject-native-swift.mjs
-      - name: CocoaPods
+      - name: CocoaPods (varsa)
+        # Capacitor 8 bağımlılıkları Swift Package Manager ile çözüyor; Podfile HİÇ
+        # üretilmiyor. İlk denemede burada sert hata verip build'i düşürdüm — release
+        # hattı da aynı durumda yalnız uyarı basıp geçiyor. Podfile varsa kur, yoksa atla.
         script: |
           PODFILE=$(find . -name Podfile -not -path '*/node_modules/*' | head -1)
-          cd "$(dirname "$PODFILE")" && pod install --repo-update
+          if [ -n "$PODFILE" ]; then
+            echo "Podfile: $PODFILE"
+            cd "$(dirname "$PODFILE")" && pod install --repo-update
+          else
+            echo "Podfile yok (Capacitor SPM kullanıyor) — bu adım atlanıyor."
+          fi
       - name: Simulator için derle (imzasız)
         script: |
           set -e
+          # Workspace varsa onu, yoksa .xcodeproj'u hedefle (SPM'de workspace olmayabilir).
           WS=$(find . -name "*.xcworkspace" -not -path '*/node_modules/*' | head -1)
-          echo "Workspace: $WS"
-          xcodebuild -workspace "$WS" -scheme App -configuration Debug \
+          if [ -n "$WS" ]; then
+            echo "Workspace: $WS"
+            set -- -workspace "$WS"
+          else
+            PROJ=$(find . -name "App.xcodeproj" -not -path '*/node_modules/*' | head -1)
+            if [ -z "$PROJ" ]; then echo "HATA: ne workspace ne xcodeproj var"; find ios -maxdepth 3; exit 1; fi
+            echo "Project: $PROJ"
+            set -- -project "$PROJ"
+          fi
+          xcodebuild "$@" -scheme App -configuration Debug \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath /tmp/dd \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
