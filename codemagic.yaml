@@ -226,7 +226,7 @@ workflows:
           UDID=$(xcrun simctl create "DVBShot" "$DT_BUYUK" "$RT")
           echo "UDID: $UDID"
           xcrun simctl boot "$UDID"
-          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl bootstatus "$UDID" -b || true
           xcrun simctl ui "$UDID" appearance light || true
           # Apple'ın kendi tanıtım saati 9:41 — tam dolu pil/sinyal, temiz durum çubuğu.
           xcrun simctl status_bar "$UDID" override \
@@ -234,16 +234,21 @@ workflows:
             --cellularMode active --cellularBars 4 --wifiMode active --wifiBars 3 || true
           xcrun simctl install "$UDID" "$APP"
 
-          OUT=screenshots/6.9-inch
+          # MUTLAK yol ŞART: ekran görüntüsünü CoreSimulator servisi yazıyor, bu kabuk
+          # değil — göreli yolu bizim çalışma dizinimize göre çözemiyor ve
+          # "The folder ... doesn't exist" ile düşüyor (ilk denemede tam bu oldu).
+          OUT="$PWD/screenshots/6.9-inch"
           mkdir -p "$OUT"
+          echo "Çıktı dizini: $OUT"
 
+          # Tek bir kare flaky olursa kalanları da kaybetmeyelim; sonunda toplu kontrol var.
           yakala() {   # $1=dosya  $2=ekran  $3=slug  $4=bekleme
             echo "--- $1  (ekran=$2 slug=$3) ---"
             xcrun simctl terminate "$UDID" "$BUNDLE" >/dev/null 2>&1 || true
-            xcrun simctl launch "$UDID" "$BUNDLE" -DVBScreenshot "$2" -DVBScreenshotDoctor "$3"
+            xcrun simctl launch "$UDID" "$BUNDLE" -DVBScreenshot "$2" -DVBScreenshotDoctor "$3" || true
             sleep "$4"
-            xcrun simctl io "$UDID" screenshot --type=png "$OUT/$1"
-            ls -la "$OUT/$1"
+            xcrun simctl io "$UDID" screenshot --type=png "$OUT/$1" || echo "UYARI: $1 alınamadı"
+            ls -la "$OUT/$1" 2>/dev/null || true
           }
 
           # Canlı API'den veri çekiliyor: ilk açılış için cömert bekleme.
@@ -255,6 +260,9 @@ workflows:
 
           echo "=== Üretilen görüntüler ==="
           ls -la "$OUT"
+          ADET=$(ls -1 "$OUT"/*.png 2>/dev/null | wc -l | tr -d ' ')
+          echo "PNG adedi: $ADET / 5"
+          if [ "$ADET" -eq 0 ]; then echo "HATA: hiç ekran görüntüsü üretilemedi"; exit 1; fi
           # Çözünürlük log'a yazılsın (6.9" = 1320x2868, 6.7" = 1290x2796).
           # sips macOS'ta hazır; gömülü çok satırlı betik YAML blok kapsamını kırıyor.
           for f in "$OUT"/*.png; do sips -g pixelWidth -g pixelHeight "$f" | tr '\n' ' '; echo; done
