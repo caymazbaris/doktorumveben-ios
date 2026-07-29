@@ -232,6 +232,15 @@ workflows:
           xcrun simctl status_bar "$UDID" override \
             --time "09:41" --batteryState charged --batteryLevel 100 \
             --cellularMode active --cellularBars 4 --wifiMode active --wifiBars 3 || true
+          # Tur 241 — SİSTEM BİLDİRİMİNİ BEKLE. Build #6'da 02-hekim-profili.png'nin
+          # tepesine iOS'un kendi "Ready for Apple Intelligence" banner'ı düştü ve
+          # hekimin adını kapattı. Her build sıfırdan cihaz yarattığı için bu ilk-açılış
+          # bildirimi HER SEFERİNDE tetikleniyor; simctl'de bildirimi kapatan bir anahtar
+          # yok, o yüzden penceresi geçene kadar bekliyoruz (yakala() ayrıca ikinci kez
+          # çekiyor ve OCR sonunda banner metnini arayıp build'i düşürüyor).
+          echo "İlk açılış bildirimleri için bekleniyor…"
+          sleep 45
+
           xcrun simctl install "$UDID" "$APP"
 
           # MUTLAK yol ŞART: ekran görüntüsünü CoreSimulator servisi yazıyor, bu kabuk
@@ -248,6 +257,11 @@ workflows:
             xcrun simctl launch "$UDID" "$BUNDLE" -DVBScreenshot "$2" -DVBScreenshotDoctor "$3" || true
             sleep "$4"
             xcrun simctl io "$UDID" screenshot --type=png "$OUT/$1" || echo "UYARI: $1 alınamadı"
+            # İKİNCİ kare aynı dosyanın üzerine yazar. Sebep: sistem bildirim banner'ı
+            # ~5 sn ekranda kalıyor; ilk kareye düşse bile ikincisi temiz çıkar. Veri
+            # zaten yüklü olduğu için ikinci karede içerik aynı, sadece banner gider.
+            sleep 8
+            xcrun simctl io "$UDID" screenshot --type=png "$OUT/$1" || true
             ls -la "$OUT/$1" 2>/dev/null || true
           }
 
@@ -272,9 +286,27 @@ workflows:
           # karedeki metni basıyoruz — hekim adı/saatler görünüyorsa ekran gerçekten
           # veriyle çizilmiş demektir; hata durumu çizilmişse o da metinden anlaşılır.
           echo "=== İçerik doğrulama (OCR) ==="
-          swift "$CM_BUILD_DIR/scripts/ocr-shots.swift" "$OUT"/*.png || echo "UYARI: OCR çalışmadı (kareler yine de üretildi)"
+          swift "$CM_BUILD_DIR/scripts/ocr-shots.swift" "$OUT"/*.png > /tmp/ocr.txt 2>&1 \
+            || echo "UYARI: OCR çalışmadı (kareler yine de üretildi)"
+          cat /tmp/ocr.txt
 
           xcrun simctl shutdown "$UDID" || true
+
+          # Tur 241 — KARE KALİTE KAPISI. Karelerin pikselini CI dışında kimse
+          # göremiyor; sessiz bir kusur doğrudan App Store'a gider. İki şeyi metinden
+          # yakalıyoruz ve bulursak build'i DÜŞÜRÜYORUZ:
+          #   1) sistem bildirim banner'ı (build #6'da "Ready for Apple Intelligence"
+          #      hekimin adının üstüne bindi),
+          #   2) uygulamanın kendi hata durumları (çözümleme/ağ hatası ekranı).
+          if grep -Eqi "Apple Intelligence|Ready for Apple" /tmp/ocr.txt; then
+            echo "HATA: karelerde iOS sistem bildirim banner'ı var — mağazaya gidemez."
+            exit 1
+          fi
+          if grep -Eqi "beklenmeyen bir yanıt|Profil alınamadı|Takvim açılamadı|Bilinmeyen hata" /tmp/ocr.txt; then
+            echo "HATA: karelerden biri uygulamanın hata ekranını gösteriyor."
+            exit 1
+          fi
+          echo "Kare kalite kapısı: TEMİZ"
     artifacts:
       - screenshots/**/*.png
     publishing:
