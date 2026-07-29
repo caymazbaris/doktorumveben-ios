@@ -238,16 +238,9 @@ workflows:
 
           echo "=== Üretilen görüntüler ==="
           ls -la "$OUT"
-          # Beklenen çözünürlük (6.9" = 1320x2868 ya da 6.7" = 1290x2796) log'a yazılsın.
-          for f in "$OUT"/*.png; do
-            python3 -c "
-import struct,sys
-p=sys.argv[1]
-d=open(p,'rb').read(33)
-w,h=struct.unpack('>II', d[16:24])
-print(p, '→', w, 'x', h)
-" "$f" || true
-          done
+          # Çözünürlük log'a yazılsın (6.9" = 1320x2868, 6.7" = 1290x2796).
+          # sips macOS'ta hazır; gömülü çok satırlı betik YAML blok kapsamını kırıyor.
+          for f in "$OUT"/*.png; do sips -g pixelWidth -g pixelHeight "$f" | tr '\n' ' '; echo; done
 
           xcrun simctl shutdown "$UDID" || true
     artifacts:
