@@ -93,11 +93,23 @@ struct DVBLoginGate: View {
     }
 }
 
+/// Tur 241 — Randevu saatleri KLİNİK saatiyle gösterilir.
+///
+/// Sunucu slotları doğru ofsetle gönderiyor ("…T11:00:00+03:00"), ama `DateFormatter`
+/// timeZone verilmezse CİHAZIN saat dilimine göre yazar. Türkiye'deki bir hastada
+/// sonuç doğru çıkıyor; yurt dışındaki cihazda (ve UTC'de çalışan CI simülatöründe)
+/// aynı randevu kayıyor — web hep Türkiye saatini gösterdiği için site ile uygulama
+/// birbirini tutmuyordu. Muayene saati klinik yerel saatidir: sabitliyoruz.
+enum DVBTime {
+    static let klinik: TimeZone = TimeZone(identifier: "Europe/Istanbul") ?? .current
+}
+
 extension Date {
-    /// "1 Ağustos 2026, 11:00" — hasta için okunur, cihazın diline saygılı.
+    /// "1 Ağustos 2026, 11:00" — hasta için okunur; saat KLİNİK saati (bkz. DVBTime).
     var dvbLong: String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "tr_TR")
+        f.timeZone = DVBTime.klinik
         f.dateFormat = "d MMMM yyyy, HH:mm"
         return f.string(from: self)
     }

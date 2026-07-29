@@ -184,8 +184,12 @@ struct DVBBookingView: View {
                         VStack(spacing: 2) {
                             Text(gunAdi(gun)).font(.caption2)
                             Text(gunNumarasi(gun)).font(.headline)
-                            Text("\(response?.slots[gun]?.count ?? 0) saat")
+                            // Tur 241: burada "\(adet) saat" yazılıydı — sayı SLOT adedi
+                            // olduğu için 20 dk'lık 8 saatlik takvim "24 saat" görünüyordu.
+                            Text("\(response?.slots[gun]?.count ?? 0) seçenek")
                                 .font(.system(size: 10))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.75)
                                 .foregroundColor(secili ? .white.opacity(0.85) : .secondary)
                         }
                         .frame(width: 64, height: 68)
@@ -376,9 +380,13 @@ struct DVBBookingView: View {
 
     // MARK: - Biçimlendirme
 
+    /// Tur 241 — HEPSİ klinik saat diliminde (bkz. `DVBTime.klinik`). Sunucunun gün
+    /// anahtarları ("2026-08-01") ve slot ofsetleri Türkiye saatine göre; cihazın
+    /// saat dilimiyle biçimlendirmek randevuyu kaydırıyordu.
     private static let gunCozucu: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "tr_TR")
+        f.timeZone = DVBTime.klinik
         f.dateFormat = "yyyy-MM-dd"
         return f
     }()
@@ -389,6 +397,7 @@ struct DVBBookingView: View {
         guard let d = gunTarihi(gun) else { return "" }
         let f = DateFormatter()
         f.locale = Locale(identifier: "tr_TR")
+        f.timeZone = DVBTime.klinik
         f.dateFormat = "EEE"
         return f.string(from: d)
     }
@@ -397,6 +406,7 @@ struct DVBBookingView: View {
         guard let d = gunTarihi(gun) else { return gun }
         let f = DateFormatter()
         f.locale = Locale(identifier: "tr_TR")
+        f.timeZone = DVBTime.klinik
         f.dateFormat = "d"
         return f.string(from: d)
     }
@@ -405,6 +415,7 @@ struct DVBBookingView: View {
         guard let d = DVBBookingView.isoCozucu(iso) else { return iso }
         let f = DateFormatter()
         f.locale = Locale(identifier: "tr_TR")
+        f.timeZone = DVBTime.klinik
         f.dateFormat = "HH:mm"
         return f.string(from: d)
     }
