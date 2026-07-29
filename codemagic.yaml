@@ -267,6 +267,13 @@ workflows:
           # sips macOS'ta hazır; gömülü çok satırlı betik YAML blok kapsamını kırıyor.
           for f in "$OUT"/*.png; do sips -g pixelWidth -g pixelHeight "$f" | tr '\n' ' '; echo; done
 
+          # Karelerin İÇERİĞİNİ log'a yaz: artifact indirmesi oturum kimliği istediği
+          # için pikselleri buradan başka görebilen yok. Apple'ın Vision OCR'ı ile her
+          # karedeki metni basıyoruz — hekim adı/saatler görünüyorsa ekran gerçekten
+          # veriyle çizilmiş demektir; hata durumu çizilmişse o da metinden anlaşılır.
+          echo "=== İçerik doğrulama (OCR) ==="
+          swift "$CM_BUILD_DIR/scripts/ocr-shots.swift" "$OUT"/*.png || echo "UYARI: OCR çalışmadı (kareler yine de üretildi)"
+
           xcrun simctl shutdown "$UDID" || true
     artifacts:
       - screenshots/**/*.png
