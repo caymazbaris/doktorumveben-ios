@@ -48,6 +48,12 @@ struct DVBBookingView: View {
 
     @EnvironmentObject private var session: DVBSession
     @Environment(\.presentationMode) private var presentation
+    @Environment(\.openURL) private var openURL
+
+    // Tur 240 — savunma katmanı: DVBDoctorDetailView artık isBookingClosed==true'da
+    // buraya HİÇ girmiyor, ama slotlar başka bir sebeple (hizmet henüz tanımsız,
+    // tamamen dolu takvim) boş dönerse yine de çıkmaz sokak bırakmayalım.
+    @State private var showRequestSheet = false
 
     // Slotlar
     @State private var response: DVBSlotsResponse?
@@ -84,11 +90,40 @@ struct DVBBookingView: View {
                     Task { await slotlariGetir() }
                 }
             } else if gunler.isEmpty {
-                DVBStateView(
-                    icon: "calendar",
-                    title: "Şu an uygun saat yok",
-                    message: "Bu hekimin önümüzdeki günlerde açık saati görünmüyor. Daha sonra tekrar bakabilirsiniz."
-                )
+                VStack(spacing: 16) {
+                    DVBStateView(
+                        icon: "calendar",
+                        title: "Şu an uygun saat yok",
+                        message: "Bu hekimin önümüzdeki günlerde açık saati görünmüyor. Talebinizi iletin, sizi arayalım."
+                    )
+                    VStack(spacing: 10) {
+                        Button {
+                            showRequestSheet = true
+                        } label: {
+                            Text("Randevu Talep Et")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(DVBTheme.brand)
+                                .foregroundColor(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                        Button {
+                            if let url = DVBBookingView.absoluteWebURL("/whatsapp/randevu/\(doctor.slug)") {
+                                openURL(url)
+                            }
+                        } label: {
+                            Label("WhatsApp'tan yaz", systemImage: "message.fill")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(Color(red: 0x25 / 255, green: 0xD3 / 255, blue: 0x66 / 255))
+                                .foregroundColor(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                }
             } else {
                 secimVeForm
             }
@@ -97,6 +132,15 @@ struct DVBBookingView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await slotlariGetir() }
         .onAppear(perform: kullanicidanDoldur)
+        .sheet(isPresented: $showRequestSheet) {
+            if let url = DVBBookingView.absoluteWebURL("/randevu-talebi/\(doctor.slug)") {
+                DVBWebSheet(url: url, title: "Randevu Talebi")
+            }
+        }
+    }
+
+    static func absoluteWebURL(_ path: String) -> URL? {
+        URL(string: DVBConfig.webBase.absoluteString + path)
     }
 
     // MARK: - Gövde

@@ -22,6 +22,9 @@ struct DVBDoctorDetail: Decodable {
         let specialties: [String]?
         let locations: [Location]?
         let appointmentTypes: [ServiceItem]?
+        let isBookingClosed: Bool?
+        let requestPath: String?
+        let whatsappPath: String?
 
         struct Location: Decodable {
             let name: String?
@@ -43,6 +46,9 @@ struct DVBDoctorDetail: Decodable {
             case isVerified = "is_verified"
             case educationSchool = "education_school"
             case appointmentTypes = "appointment_types"
+            case isBookingClosed = "is_booking_closed"
+            case requestPath = "request_path"
+            case whatsappPath = "whatsapp_path"
         }
     }
 
@@ -63,6 +69,9 @@ struct DVBDoctorDetailView: View {
 
     @State private var detail: DVBDoctorDetail?
     @State private var error: String?
+    @State private var showRequestSheet = false
+
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         ScrollView {
@@ -139,6 +148,11 @@ struct DVBDoctorDetailView: View {
         .navigationTitle(doctor.name ?? "Hekim")
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
+        .sheet(isPresented: $showRequestSheet) {
+            if let url = DVBDoctorDetailView.absoluteWebURL(detail?.doctor.requestPath) {
+                DVBWebSheet(url: url, title: "Randevu Talebi")
+            }
+        }
     }
 
     private var header: some View {
@@ -162,19 +176,67 @@ struct DVBDoctorDetailView: View {
         }
     }
 
+    /// Tur 240 — App Store 4.2.2: takvimi kapalı hekimde (aday VEYA `booking_closed`
+    /// gerçek hesap) artık `/slots`'a hiç GİTMİYORUZ — web'deki AYNI kural
+    /// (`Doctor::isBookingClosed()`) burada da uygulanır. Sunucudan bilgi gelene kadar
+    /// (ilk an) canlı randevu varsayılır — eski davranış, kullanıcı beklemeden tıklarsa
+    /// zaten DVBBookingView kendi 404'ünü zarifçe karşılar.
     private var bookingBar: some View {
-        NavigationLink(destination: DVBBookingView(doctor: doctor)) {
-            Text("Randevu al")
-                .font(.headline)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(DVBTheme.brand)
-                .foregroundColor(.white)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        Group {
+            if detail?.doctor.isBookingClosed == true {
+                VStack(spacing: 8) {
+                    Text("Online takvim kapalı — talebinizi bize iletin, sizi arayalım.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                    HStack(spacing: 10) {
+                        Button {
+                            showRequestSheet = true
+                        } label: {
+                            Text("Randevu Talep Et")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(DVBTheme.brand)
+                                .foregroundColor(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                        Button {
+                            if let url = DVBDoctorDetailView.absoluteWebURL(detail?.doctor.whatsappPath) {
+                                openURL(url)
+                            }
+                        } label: {
+                            Image(systemName: "message.fill")
+                                .font(.headline)
+                                .frame(width: 52, height: 52)
+                                .background(Color(red: 0x25 / 255, green: 0xD3 / 255, blue: 0x66 / 255))
+                                .foregroundColor(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                    }
+                }
+            } else {
+                NavigationLink(destination: DVBBookingView(doctor: doctor)) {
+                    Text("Randevu al")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(DVBTheme.brand)
+                        .foregroundColor(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+            }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 10)
         .background(.bar)
+    }
+
+    /// Sunucudan gelen GÖRECELİ yol ("/randevu-talebi/slug") → tam URL. Yol yoksa nil
+    /// (buton devre dışı kalır, çökme olmaz).
+    static func absoluteWebURL(_ path: String?) -> URL? {
+        guard let path, !path.isEmpty else { return nil }
+        return URL(string: DVBConfig.webBase.absoluteString + path)
     }
 
     private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
