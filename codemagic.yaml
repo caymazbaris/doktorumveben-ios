@@ -47,6 +47,14 @@ workflows:
           ls -la ios/App/App/Assets.xcassets/AppIcon.appiconset/ || true
       - name: Native hazırlık (ikon doğrulama + izinler + entitlement + PrivacyInfo + iPhone-only)
         script: node scripts/prepare-native-ios.mjs
+      - name: SwiftUI katmanını enjekte et (App Store 4.2 — native ekranlar)
+        # Tur 235. `ios/` sürüm kontrolünde YOK; her derlemede Capacitor şablonundan
+        # üretiliyor. Bu adım native/*.swift dosyalarını App/Native/ altına kopyalar,
+        # AppDelegate'i SwiftUI kökü kuracak sürümle değiştirir ve project.pbxproj'a
+        # (fileRef + buildFile + grup + Sources fazı) ekler. Yazmadan önce çapaları,
+        # yazdıktan sonra sonucu doğrular; tutarsızlıkta derlemeyi DURDURUR — bozuk
+        # bir pbxproj Xcode'un projeyi hiç açamamasına yol açar.
+        script: node scripts/inject-native-swift.mjs
       - name: CocoaPods + yapı teşhisi (.xcworkspace pod install ile üretilir)
         script: |
           echo "=== ios/ (2 seviye) ==="; find ios -maxdepth 2 2>/dev/null || echo "ios/ YOK"

@@ -157,6 +157,10 @@ const usageKeys = {
     'Randevu ve sağlık belgelerinizi yükleyebilmek için fotoğraflara erişim gerekir.',
   NSPhotoLibraryAddUsageDescription:
     'Belge ve raporları cihazınıza kaydedebilmek için galeriye erişim gerekir.',
+  // Tur 230 — "Yakınımdakiler": WKWebView'daki geolocation çağrısı bu anahtar OLMADAN
+  // iOS'ta sessizce reddedilir (uygulama içinde buton hiç çalışmaz).
+  NSLocationWhenInUseUsageDescription:
+    'Size en yakın hekimleri sıralayabilmek için konumunuza erişim gerekir. Konumunuz kaydedilmez.',
 };
 let addedUsage = [];
 for (const [key, val] of Object.entries(usageKeys)) {
