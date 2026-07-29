@@ -22,12 +22,30 @@ workflows:
       cocoapods: default
     scripts:
       - name: Bağımlılıkları kur
-        script: npm install
+        # --include=dev ŞART: @capacitor/cli ve @capacitor/assets devDependencies'te.
+        script: npm install --include=dev
       - name: iOS platformunu ekle + senkronla
         script: |
           if [ ! -d ios ]; then npx cap add ios; fi
           npx cap sync ios
-      - name: Native hazırlık (izinler + entitlement + PrivacyInfo + iPhone-only)
+      - name: Marka ikonu + açılış ekranı üret (App Store 2.3.8)
+        # `ios/` her build'de şablondan üretildiği için Capacitor'ın YER TUTUCU logosuyla
+        # gelir — 1.0 (8) tam bu yüzden reddedildi. Bu adım assets/icon-only.png +
+        # assets/logo.png'den gerçek marka setini üretir. Adım patlarsa build DURMAZ:
+        # prepare-native-ios.mjs ikonu yine de yazar ve doğrular (marker dosyası yoksa
+        # açılış ekranını da düz marka rengine çevirir).
+        script: |
+          rm -f ios/.assets-generated
+          if npx capacitor-assets generate --ios --assetPath assets \
+               --iconBackgroundColor '#0891B2' --iconBackgroundColorDark '#0891B2' \
+               --splashBackgroundColor '#0891B2' --splashBackgroundColorDark '#0F172A'; then
+            touch ios/.assets-generated
+            echo "capacitor-assets TAMAM"
+          else
+            echo "UYARI: capacitor-assets çalışmadı — yedek hat (prepare-native-ios.mjs) devrede."
+          fi
+          ls -la ios/App/App/Assets.xcassets/AppIcon.appiconset/ || true
+      - name: Native hazırlık (ikon doğrulama + izinler + entitlement + PrivacyInfo + iPhone-only)
         script: node scripts/prepare-native-ios.mjs
       - name: CocoaPods + yapı teşhisi (.xcworkspace pod install ile üretilir)
         script: |

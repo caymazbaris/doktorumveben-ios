@@ -17,6 +17,8 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
+import crypto from 'node:crypto';
 
 const root = process.cwd();
 const say = (m) => console.log(`[ios-hazırlık] ${m}`);
@@ -28,6 +30,120 @@ const write = (p, c) => fs.writeFileSync(p, c, 'utf8');
 const appDir = path.join(root, 'ios/App/App');
 const pbxPath = path.join(root, 'ios/App/App.xcodeproj/project.pbxproj');
 if (!fs.existsSync(appDir)) die('ios/ klasörü yok. Önce: npx cap add ios && npx cap sync ios');
+
+// ── 0) MARKA GÖRSELLERİ — App Store 2.3.8 (28 Tem 2026 reddinin sebebi) ──────
+// `ios/` sürüm kontrolünde YOK; her CI derlemesinde `npx cap add ios` Capacitor'ın
+// ŞABLONUNU açıyor ve AppIcon.appiconset içine kendi yer-tutucu logosunu koyuyor.
+// 1.0 (8) bu yüzden Capacitor logosuyla mağazaya gitti → "app icons appear to be
+// placeholder icons". capacitor-assets adımı CI'da eklendi, AMA tek dayanak o değil:
+// burada ikon KOŞULSUZ marka dosyasıyla yazılır ve doğrulanmadan derleme İLERLEMEZ.
+const iconSrcPath = path.join(root, 'assets/app-icon-1024.png');
+const iconSetDir = path.join(appDir, 'Assets.xcassets/AppIcon.appiconset');
+const splashSetDir = path.join(appDir, 'Assets.xcassets/Splash.imageset');
+const assetsMarker = path.join(root, 'ios/.assets-generated'); // capacitor-assets başarıyla koştuysa CI yaratır
+const BRAND_RGB = [0x08, 0x91, 0xB2]; // #0891B2 — marka teali (SplashScreen eklentisiyle aynı)
+
+const CRC_TABLE = (() => {
+  const t = new Int32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c;
+  }
+  return t;
+})();
+const crc32 = (buf) => {
+  let c = -1;
+  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ -1) >>> 0;
+};
+
+/** PNG başlığını okur: boyut + renk tipi + tRNS (şeffaflık) var mı. */
+function pngInfo(buf) {
+  if (buf.length < 33 || buf.readUInt32BE(0) !== 0x89504e47) return null;
+  const info = { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20), colorType: buf[25], hasTrns: false };
+  let off = 8;
+  while (off + 8 <= buf.length) {
+    const len = buf.readUInt32BE(off);
+    const type = buf.toString('ascii', off + 4, off + 8);
+    if (type === 'tRNS') info.hasTrns = true;
+    if (type === 'IEND') break;
+    off += 12 + len;
+  }
+  return info;
+}
+
+/** Bağımlılıksız (zlib) düz renk PNG — capacitor-assets çalışmazsa açılış ekranı yedeği. */
+function solidPng(w, h, [r, g, b]) {
+  const row = Buffer.alloc(1 + w * 3); // filtre baytı 0 (None) + RGB
+  for (let x = 0; x < w; x++) { row[1 + x * 3] = r; row[2 + x * 3] = g; row[3 + x * 3] = b; }
+  const idat = zlib.deflateSync(Buffer.concat(Array.from({ length: h }, () => row)), { level: 9 });
+  const chunk = (type, data) => {
+    const out = Buffer.alloc(12 + data.length);
+    out.writeUInt32BE(data.length, 0);
+    out.write(type, 4, 'ascii');
+    data.copy(out, 8);
+    out.writeUInt32BE(crc32(out.subarray(4, 8 + data.length)), 8 + data.length);
+    return out;
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(w, 0);
+  ihdr.writeUInt32BE(h, 4);
+  ihdr[8] = 8; ihdr[9] = 2; // 8 bit, truecolor (alfa YOK)
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr), chunk('IDAT', idat), chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+if (!fs.existsSync(iconSrcPath)) die('assets/app-icon-1024.png YOK — App Store ikonu olmadan derleme yapılmaz.');
+const iconBuf = fs.readFileSync(iconSrcPath);
+const iconMeta = pngInfo(iconBuf);
+if (!iconMeta) die('assets/app-icon-1024.png geçerli bir PNG değil.');
+if (iconMeta.width !== 1024 || iconMeta.height !== 1024) {
+  die(`App Store ikonu 1024x1024 olmalı (bulunan: ${iconMeta.width}x${iconMeta.height}).`);
+}
+// Apple App Store ikonunda ŞEFFAFLIK KABUL ETMEZ (colorType 4/6 = alfa kanalı, tRNS = renk anahtarı).
+if (iconMeta.colorType === 4 || iconMeta.colorType === 6 || iconMeta.hasTrns) {
+  die('App Store ikonunda alfa/şeffaflık var — Apple reddeder. Düz zeminli PNG üretin.');
+}
+if (!fs.existsSync(iconSetDir)) die(`AppIcon.appiconset yok: ${iconSetDir} — cap add ios düzgün çalışmamış.`);
+
+const iconSha = crypto.createHash('sha256').update(iconBuf).digest('hex');
+let iconsWritten = 0;
+for (const f of fs.readdirSync(iconSetDir).filter((f) => f.toLowerCase().endsWith('.png'))) {
+  const p = path.join(iconSetDir, f);
+  const meta = pngInfo(fs.readFileSync(p));
+  // Capacitor 8 appiconset'i tek yuvalıdır (1024). capacitor-assets koştuysa da aynı
+  // dosyayı marka ikonuyla üzerine yazmak zararsız; koşmadıysa yer tutucuyu siler.
+  if (meta && meta.width === 1024 && meta.height === 1024) {
+    fs.writeFileSync(p, iconBuf);
+    iconsWritten++;
+  }
+}
+const iconOk = fs.readdirSync(iconSetDir)
+  .filter((f) => f.toLowerCase().endsWith('.png'))
+  .some((f) => crypto.createHash('sha256').update(fs.readFileSync(path.join(iconSetDir, f))).digest('hex') === iconSha);
+if (!iconOk) {
+  die('AppIcon marka ikonuyla yazılamadı — 1024x1024 yuva bulunamadı. Bu hâliyle derleme yine 2.3.8 reddi alır.');
+}
+say(`AppIcon doğrulandı: 1024x1024, alfa yok, ${iconsWritten} dosya marka ikonuyla yazıldı (sha ${iconSha.slice(0, 12)}…).`);
+
+// Açılış ekranı: capacitor-assets koştuysa (marker) logolu splash üretilmiştir; koşmadıysa
+// şablonda Capacitor logosu kalır → onu da düz marka rengiyle değiştiriyoruz (yer tutucu kalmasın).
+if (fs.existsSync(assetsMarker)) {
+  say('Açılış ekranı capacitor-assets tarafından üretildi (marka logosu).');
+} else if (fs.existsSync(splashSetDir)) {
+  let n = 0;
+  for (const f of fs.readdirSync(splashSetDir).filter((f) => f.toLowerCase().endsWith('.png'))) {
+    const p = path.join(splashSetDir, f);
+    const meta = pngInfo(fs.readFileSync(p));
+    if (!meta) continue;
+    fs.writeFileSync(p, solidPng(meta.width, meta.height, BRAND_RGB));
+    n++;
+  }
+  warn(`capacitor-assets çalışmadı → açılış ekranı düz marka rengine (#0891B2) çevrildi (${n} dosya). Capacitor yer-tutucu logosu KALMADI, ama logolu splash için CI adımı onarılmalı.`);
+}
 
 // ── 1) Info.plist izin açıklamaları ─────────────────────────────────────────
 const plistPath = path.join(appDir, 'Info.plist');
