@@ -111,6 +111,18 @@ struct DVBAccountView: View {
                 .disabled(busy || email.isEmpty || password.isEmpty)
             }
 
+            // Tur 241 — App Store 4.8: Apple ile giriş UYGULAMA İÇİNDE, e-posta/parola
+            // ile EŞDEĞER konumda. Eskiden burada "sonraki sürümde gelecek, şimdilik
+            // üye ol ekranını kullanın" yazıyordu ve kullanıcı WebView'a atılıyordu —
+            // 1.0 reddinin bir numaralı gerekçesi tam buydu.
+            Section {
+                DVBAppleSignInButton(busy: $busy, error: $error)
+            } header: {
+                Text("Ya da")
+            } footer: {
+                Text("Apple ile giriş yaparsanız e-postanızı gizli tutabilirsiniz; hesabınızı uygulama içinden her zaman silebilirsiniz.")
+            }
+
             Section {
                 Button("Üye ol") {
                     webSheet = .init(url: DVBConfig.webBase.appendingPathComponent("uye-ol"))
@@ -118,8 +130,6 @@ struct DVBAccountView: View {
                 Button("Parolamı unuttum") {
                     webSheet = .init(url: DVBConfig.webBase.appendingPathComponent("sifremi-unuttum"))
                 }
-            } footer: {
-                Text("Apple ile giriş bir sonraki sürümde uygulama içinde olacak; şimdilik üye ol ekranından kullanabilirsiniz.")
             }
         }
     }

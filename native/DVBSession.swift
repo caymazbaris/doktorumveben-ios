@@ -54,6 +54,32 @@ final class DVBSession: ObservableObject {
         self.user = res.user
     }
 
+    /// Tur 241 — App Store 4.8: uygulama içi Apple ile giriş.
+    ///
+    /// Cihaz Apple ile kendi konuştu; burada yalnız jetonu sunucuya taşıyoruz.
+    /// `needs_phone` girişi ENGELLEMEZ — hesap açılır, telefon sonra tamamlanır;
+    /// aksi hâlde Apple ile giren kullanıcı kapıda kalırdı (kılavuz 4.8 buna izin
+    /// vermez: Apple ile giriş diğer yöntemlerle eşdeğer olmalı).
+    func signInWithApple(identityToken: String, nonce: String,
+                         firstName: String?, lastName: String?) async throws {
+        var govde: [String: Any] = [
+            "identity_token": identityToken,
+            "nonce": nonce,
+            "device_name": deviceName(),
+        ]
+        if let firstName, !firstName.isEmpty { govde["first_name"] = firstName }
+        if let lastName, !lastName.isEmpty { govde["last_name"] = lastName }
+
+        let res: DVBAppleAuthResponse = try await DVBAPI.shared.post("auth/apple", body: govde)
+        guard let token = res.token else {
+            throw DVBError.server(200, res.message ?? "Apple ile giriş yapılamadı.")
+        }
+
+        DVBKeychain.save(token)
+        self.token = token
+        self.user = res.user
+    }
+
     func signOut() {
         if let token {
             // Sunucudaki jetonu da düşür; başarısız olsa bile yerelde siliyoruz.

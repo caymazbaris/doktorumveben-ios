@@ -271,12 +271,20 @@ workflows:
           yakala 03-randevu-takvimi.png      randevu erkan-kulduk-84ix  12
           yakala 04-psikolog-profili.png     profil  ekin-sokmen-ymis   12
           yakala 05-seans-takvimi.png        randevu ekin-sokmen-ymis   12
+          # Tur 241 — 4.8 kanıtı: uygulama içi "Apple ile giriş" düğmesi.
+          yakala 06-giris-apple.png          hesap   erkan-kulduk-84ix  10
 
           echo "=== Üretilen görüntüler ==="
           ls -la "$OUT"
+          BEKLENEN=6
           ADET=$(ls -1 "$OUT"/*.png 2>/dev/null | wc -l | tr -d ' ')
-          echo "PNG adedi: $ADET / 5"
-          if [ "$ADET" -eq 0 ]; then echo "HATA: hiç ekran görüntüsü üretilemedi"; exit 1; fi
+          echo "PNG adedi: $ADET / $BEKLENEN"
+          # Tur 241: eskiden yalnız "0 mı?" diye bakıyordu — bir kare sessizce
+          # düşse haberimiz olmadan eksik takım yüklerdik. Artık TAM sayı şart.
+          if [ "$ADET" -ne "$BEKLENEN" ]; then
+            echo "HATA: $BEKLENEN kare beklenirken $ADET üretildi — eksik kareyle mağazaya çıkılmaz."
+            exit 1
+          fi
           # Çözünürlük log'a yazılsın (6.9" = 1320x2868, 6.7" = 1290x2796).
           # sips macOS'ta hazır; gömülü çok satırlı betik YAML blok kapsamını kırıyor.
           for f in "$OUT"/*.png; do sips -g pixelWidth -g pixelHeight "$f" | tr '\n' ' '; echo; done
@@ -306,7 +314,20 @@ workflows:
             echo "HATA: karelerden biri uygulamanın hata ekranını gösteriyor."
             exit 1
           fi
-          echo "Kare kalite kapısı: TEMİZ"
+
+          # Tur 241 — POZİTİF kapı (App Store 4.8). Yukarıdaki iki kontrol "kötü bir şey
+          # YOK" der; bu ise "iyi bir şey VAR" der. 1.0 tam 4.8'den reddedildi çünkü
+          # Apple ile giriş uygulama içinde yoktu. Entitlement + Swift doğru görünse de
+          # düğme çizilmezse yine reddedilirdik; tek görme yolumuz bu kare.
+          # Apple'ın kendi düğmesi cihaz diline göre "Apple ile ..." / "Sign in with Apple"
+          # yazar — ikisini de kabul ediyoruz.
+          if ! grep -Eqi "Apple ile|Sign in with Apple|Sign up with Apple" /tmp/ocr.txt; then
+            echo "HATA: 'Apple ile giriş' düğmesi hiçbir karede görünmüyor — 4.8 yine reddedilir."
+            echo "Bakılacak yerler: App.entitlements (com.apple.developer.applesignin),"
+            echo "DVBAccountView'daki DVBAppleSignInButton, DVBScreenshot 'hesap' ekranı."
+            exit 1
+          fi
+          echo "Kare kalite kapısı: TEMİZ (4.8 düğmesi de görüldü)"
     artifacts:
       - screenshots/**/*.png
     publishing:

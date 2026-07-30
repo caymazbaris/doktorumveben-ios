@@ -192,9 +192,17 @@ say(`Info.plist izin/uyum anahtarları yazıldı${addedUsage.length ? ' (' + add
 // entitlement hem de Apple Developer'da App ID'ye Push capability gerekir.
 const entPath = path.join(appDir, 'App.entitlements');
 const pushReady = fs.existsSync(path.join(root, 'firebase/GoogleService-Info.plist'));
-const entInner = pushReady
-  ? '\t<key>aps-environment</key>\n\t<string>production</string>\n'
-  : '';
+
+// Tur 241 — KRİTİK (App Store 4.8): Apple ile giriş entitlement'ı. Bu anahtar
+// olmadan ASAuthorization çalışma anında hata verir; düğme görünür ama giriş
+// OLMAZ. 1.0 tam 4.8'den reddedildi, o yüzden burası koşulsuz yazılır.
+// ÖN KOŞUL: Apple Developer'da App ID (com.doktorumveben.app) üzerinde
+// "Sign In with Apple" capability AÇIK olmalı — kapalıysa imzalama
+// "provisioning profile ... doesn't include com.apple.developer.applesignin"
+// ile DÜŞER. (Web akışı için Services ID zaten bu App ID'ye bağlı olduğundan
+// capability büyük olasılıkla açık; build hata verirse ilk bakılacak yer bu.)
+const entInner = '\t<key>com.apple.developer.applesignin</key>\n\t<array>\n\t\t<string>Default</string>\n\t</array>\n'
+  + (pushReady ? '\t<key>aps-environment</key>\n\t<string>production</string>\n' : '');
 write(entPath, `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">

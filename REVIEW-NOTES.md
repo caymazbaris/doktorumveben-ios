@@ -9,8 +9,12 @@
 
 Thank you for the earlier review. We addressed every point:
 
-**4.8 — Sign in with Apple.** Implemented and live. Apple is offered alongside our other sign-in
-options on the same screen, and it is not required in order to browse or to book.
+**4.8 — Sign in with Apple.** Now implemented **natively inside the app**. On the "Hesabım"
+(Account) tab, the signed-out screen offers Apple's own `SignInWithAppleButton` directly beneath
+the e-mail/password form — equivalent placement, no web view, no redirect. The app requests only
+name and e-mail, supports Apple's private e-mail relay, and the identity token is verified
+server-side against Apple's JWKS. Signing in is **not** required to browse doctors or to book an
+appointment. The account can be deleted from inside the app at any time (see 5.1.1(v) below).
 
 **4.2 / 4.2.2 — App is now a full native client with real, bookable doctors.**
 Two separate problems were fixed:

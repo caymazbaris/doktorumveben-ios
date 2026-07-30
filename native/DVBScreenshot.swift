@@ -17,7 +17,11 @@ import SwiftUI
 /// `DVBRootView` her zamanki sekmeli arayüzü kurar.
 enum DVBScreenshotMode {
 
-    /// "arama" | "profil" | "randevu"
+    /// "arama" | "profil" | "randevu" | "hesap"
+    ///
+    /// Tur 241'de "hesap" eklendi: App Store 4.8 için uygulama içi "Apple ile giriş"
+    /// düğmesinin GERÇEKTEN çizildiğini görmenin tek yolu bu — ekipte cihaz yok,
+    /// entitlement/kod doğru görünse de düğme çizilmiyorsa yine reddedilirdik.
     static var ekran: String? { deger("-DVBScreenshot") }
 
     /// Hangi hekim gösterilecek (canlı slug). Verilmezse makul bir varsayılan.
@@ -71,6 +75,10 @@ struct DVBScreenshotHost: View {
                 }
             }
             .navigationViewStyle(.stack)
+        } else if ekran == "hesap" {
+            // Girişsiz hesap ekranı: e-posta/parola + "Apple ile giriş" düğmesi.
+            // DVBAccountView kendi NavigationView'ını kurar.
+            DVBAccountView()
         } else {
             // DVBSearchView kendi NavigationView'ını kuruyor — ikinci kez sarmalamıyoruz.
             DVBSearchView()
