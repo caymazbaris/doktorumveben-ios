@@ -119,7 +119,14 @@ begin
     app.deployment_target || '17.0'
   )
 
-  grup = proje.main_group.new_group(WIDGET_NAME, hedef_dir)
+  # ⚠ GRUP YOLU PROJEYE GÖRE, DEPO KÖKÜNE GÖRE DEĞİL.
+  # İlk yazışımda `new_group(WIDGET_NAME, hedef_dir)` demiştim; hedef_dir depo
+  # kökünden "ios/App/DVBWidgetExtension" idi. Ama .xcodeproj dosyası zaten
+  # ios/App altında olduğu için Xcode bunu "ios/App/ios/App/..." diye çözerdi:
+  # kaynak dosya BULUNAMAZ, hedef boş derlenir. Proje kökü ios/App olduğundan
+  # yol yalnızca klasör adı olmalı. (INFOPLIST_FILE ve CODE_SIGN_ENTITLEMENTS
+  # ayarları da aynı köke göre yazılıyor — üçü tutarlı.)
+  grup = proje.main_group.new_group(WIDGET_NAME, WIDGET_NAME)
   widget.add_file_references([grup.new_reference('DVBWidget.swift')])
 
   # Paylaşılan dosyalar İKİ hedefe birden üye olur. Kopyalamak yerine üyelik
