@@ -18,7 +18,11 @@ workflows:
       groups:
         - ios_credentials   # Codemagic'te bu grupta CERTIFICATE_PRIVATE_KEY (Secure) tanımlı olmalı
       node: 22
-      xcode: latest
+      # Build #13 gunlugunden alindi: "Using Xcode 26.4.1 (17E202)".
+      # "latest" BIRAKILMADI: Codemagic 6 Eylul 2026'da varsayilani 26.6'ya
+      # cekiyor; sabitlemezsek yarinki derleme baska arac zincirinde kosar ve
+      # bir sey kirilirsa "bizim kod mu, Xcode mu" ayirt edilemez.
+      xcode: 26.4.1
       cocoapods: default
     scripts:
       - name: Bağımlılıkları kur
@@ -147,7 +151,11 @@ workflows:
     max_build_duration: 45
     environment:
       node: 22
-      xcode: latest
+      # Build #13 gunlugunden alindi: "Using Xcode 26.4.1 (17E202)".
+      # "latest" BIRAKILMADI: Codemagic 6 Eylul 2026'da varsayilani 26.6'ya
+      # cekiyor; sabitlemezsek yarinki derleme baska arac zincirinde kosar ve
+      # bir sey kirilirsa "bizim kod mu, Xcode mu" ayirt edilemez.
+      xcode: 26.4.1
       cocoapods: default
     scripts:
       - name: Bağımlılıkları kur
