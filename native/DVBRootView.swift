@@ -9,6 +9,11 @@ struct DVBRootView: View {
 
     @StateObject private var session = DVBSession()
 
+    /// DVB-000111 — biyometrik kilit. Varsayılan kapalı; kullanıcı Hesabım'dan açar.
+    @StateObject private var lock = DVBBiometricLock()
+
+    @Environment(\.scenePhase) private var scenePhase
+
     var body: some View {
         // Tur 241 — CI'da mağaza görüntüsü alınırken kök devralınır (bkz. DVBScreenshot.swift).
         // Argüman yalnız Codemagic'ten gelir; normal kullanımda bu dal HİÇ çalışmaz.
@@ -36,7 +41,15 @@ struct DVBRootView: View {
         }
         .tint(DVBTheme.brand)
         .environmentObject(session)
+        .environmentObject(lock)
         .task { await session.restore() }
+        // DVB-000111 — kilit perdesi EN DIŞTA: sekme çubuğu dahil her şeyi örtmeli.
+        .dvbKilit(lock)
+        .onChange(of: scenePhase) { _, yeni in
+            // Uygulama arka plana veya görev değiştiriciye geçtiğinde yeniden kilitle.
+            // .inactive de dahil: görev değiştirici önizlemesi ekranın fotoğrafını çeker.
+            if yeni != .active { lock.arkaPlanaGitti() }
+        }
     }
 }
 

@@ -1,124 +1,80 @@
 # App Review Notes — Doktorumveben (com.doktorumveben.app)
 
-> Paste the English block below into **App Store Connect → App Review Information → Notes**.
-> Fill the demo credentials before submitting (see "Demo account").
+> Bu dosya, **App Store Connect → App Review Information → Notes** alanına GİRİLMİŞ metnin
+> birebir kopyasıdır. Alanın sınırı **4.000 karakter**. Alanı değiştirirsen burayı da güncelle —
+> ikisi ayrışırsa hangisinin doğru olduğu bilinemez.
+>
+> Gönderim: **Tur 241, 30 Tem 2026 — BUILD 11 / sürüm 1.0** (önce reddedilen build 8'di).
+> Red gerekçeleri: 2.3.8, 4.2.0, 4.2.2, 4.8.0.
 
 ---
 
-## What changed since the previous submission (EN — copy/paste this first)
+## Gönderilen metin (birebir — EN)
 
-Thank you for the earlier review. We addressed every point:
+```text
+RESUBMISSION — this is BUILD 11. The previously reviewed build was 8. Every rejection point below was addressed in this build.
 
-**4.8 — Sign in with Apple.** Now implemented **natively inside the app**. On the "Hesabım"
-(Account) tab, the signed-out screen offers Apple's own `SignInWithAppleButton` directly beneath
-the e-mail/password form — equivalent placement, no web view, no redirect. The app requests only
-name and e-mail, supports Apple's private e-mail relay, and the identity token is verified
-server-side against Apple's JWKS. Signing in is **not** required to browse doctors or to book an
-appointment. The account can be deleted from inside the app at any time (see 5.1.1(v) below).
+4.8 LOGIN SERVICES — Sign in with Apple is now NATIVE and IN-APP.
+Open the app and tap the "Hesabım" (Account) tab in the bottom bar. Directly under the e-mail/password form is Apple's own Sign in with Apple button (SwiftUI SignInWithAppleButton) — no web view, no redirect, equivalent placement and prominence. We request name and e-mail only, Apple's private e-mail relay is fully supported, and the identity token is verified server-side against Apple's JWKS. Signing in is optional: browsing AND booking work with no account at all.
 
-**4.2 / 4.2.2 — App is now a full native client with real, bookable doctors.**
-Two separate problems were fixed:
+4.2 / 4.2.2 MINIMUM FUNCTIONALITY — the app is now a native client with real, bookable doctors.
+1) Native, not a web view. Doctor search, the doctor profile, the appointment calendar, the booking form and the confirmation screen are implemented in SwiftUI. The app also uses device capabilities a website cannot: it writes the confirmed appointment into the iPhone's own Calendar (EventKit, write-only access) and sets a local reminder for the day before.
+2) Real inventory. Practitioners who have signed a consent now have live calendars with selectable times, and you can complete a real booking WITHOUT creating an account. Verified examples — tap "Doktor Bul" (Find a Doctor) and search the name:
+- Op. Dr. Erkan Kulduk — ENT, İzmir — 20-minute slots, Tue-Sat 11:00-19:00
+- Uzm. Dr. Erhan Ergin — Manisa — 20-minute slots, Mon-Sat 08:30-18:30
+- Kl. Psk. Ekin Sökmen — Psychologist, İzmir — 60-minute sessions, Mon-Sat 09:00-17:00
+Doctor -> "Randevu al" (Book) -> pick a day -> pick a time -> enter a name and a Turkish mobile number -> submit. The appointment is created immediately and shown with its appointment number.
+Why a new booking reads "awaiting approval": in Turkey the practitioner must confirm a medical appointment before it is final. The patient is notified by WhatsApp and e-mail the moment it is approved, and doctors who prefer instant confirmation switch on auto-approval in their own panel. This is the production behaviour of the live service at doktorumveben.com, not a placeholder.
+No dead ends: a practitioner with no online calendar shows "Randevu Talep Et" (request an appointment) plus a WhatsApp option instead of an empty calendar, so every doctor leads to a working way to get an appointment.
 
-1. *Native experience.* Doctor search, the doctor profile, the appointment calendar, the booking
-   form and the confirmation screen are now implemented in **SwiftUI**, not a web view. The app also
-   uses device capabilities a website cannot: writing the confirmed appointment into the iPhone's
-   own Calendar, and setting a local reminder the day before.
-2. *Real, bookable inventory.* Practitioners with a signed consent now have **live calendars with
-   selectable times**. You can complete a real booking **without creating an account**. Verified
-   examples (open the app, tap "Doktor Bul", and search the name):
-   - **Op. Dr. Erkan Kulduk** — ENT, İzmir — 20-minute slots, Tue–Sat 11:00–19:00
-   - **Uzm. Dr. Erhan Ergin** — Manisa — 20-minute slots, Mon–Sat 08:30–18:30
-   - **Kl. Psk. Ekin Sökmen** — Psychologist, İzmir — 60-minute sessions, Mon–Sat 09:00–17:00
+2.3.8 ACCURATE METADATA — every screenshot was recaptured from THIS build and shows the actual native screens: doctor search, doctor profile, the appointment calendar, and the account screen with the Sign in with Apple button.
 
-   Tap the doctor → "Randevu al" (Book) → pick a day → pick a time → enter a name and a Turkish
-   mobile number → submit. The appointment is created immediately and shown with its appointment
-   number.
+5.1.1(v) ACCOUNT DELETION — a signed-in patient deletes their account and data from inside the app: "Hesabım" -> account/data deletion. No support contact required.
 
-**How confirmation works (important, and why it is not "instant").** In Turkey the practitioner
-must confirm a medical appointment before it is final, so a new booking is created with the status
-"awaiting approval". The patient is then notified by **WhatsApp and e-mail** the moment the doctor
-(or our clinical operations team, for practitioners who do not manage the calendar themselves)
-approves it. Doctors who prefer automatic confirmation can enable it in their own panel, in which
-case the appointment is confirmed on the spot. Nothing about this flow is a placeholder — it is the
-production behaviour used by real patients on doktorumveben.com.
+DEMO ACCOUNT — in the Sign-In fields above. No SMS and no one-time code is required for it; the password alone signs you in.
 
-**No dead ends.** For a practitioner who has not opened an online calendar, the app deliberately
-does **not** show an empty calendar. It shows "Randevu Talep Et" (request an appointment) and a
-WhatsApp option instead, so every doctor in the directory leads to a working way to get an
-appointment.
+DEVICE FEATURES USED — camera and microphone (in-app video consultation over WebRTC), photo library / document upload, on-screen signature for informed-consent forms, iPhone Calendar write + local reminders, native splash screen and status bar, native error/retry state. Push notifications are NOT in this build; they are planned for a later update.
 
-**2.3.8 — Screenshots.** The screenshots have been recaptured from this build so that they show the
-actual native screens.
+PAYMENTS — appointment fees are payments for real-world medical services (Guideline 3.1.3(e)), taken by our licensed Turkish payment provider PayTR. No digital goods or subscriptions are sold to patients, so In-App Purchase does not apply. The doctor-side paid subscription is not offered inside the iOS app.
 
-**5.1.1(v) — Account deletion.** A signed-in patient can delete their account and data from inside
-the app (Profile → account/data deletion), without contacting support.
+PRIVACY — the app does not track users across other companies' apps or websites; third-party advertising SDKs are disabled in the native app context, so no ATT prompt is shown and no "Data used to track you" is declared. Region: Turkey. Content is in Turkish. Support: destek@doktorumveben.com
+```
 
 ---
 
-## Notes to the App Review team (EN — copy/paste)
+## Gerçeklik denetimi (bu turda tek tek doğrulandı — iddia ≠ kod olmasın)
 
-Doktorumveben is a doctor-appointment marketplace for Turkey. Patients find doctors by
-city / district / specialty, view verified profiles, and book in-person or online (video)
-appointments. The app is a native iOS client built with Capacitor; the following features are
-implemented natively (not just web):
-
-- **Push notifications (APNs):** appointment reminders and secure doctor↔patient messages.
-- **Camera & microphone:** in-app video consultation (getUserMedia over WebRTC).
-- **Photo library / document upload:** patients attach documents to appointments.
-- **On-canvas signature:** informed-consent forms are signed inside the app.
-- **Native offline screen:** a branded "No connection / Retry" screen (no blank web view).
-- Native splash screen and status-bar integration.
-
-**How to review**
-1. Browsing **and booking** work **without login** — open the app, tap "Doktor Bul" (Find a Doctor),
-   filter by city/specialty, open a doctor profile, then "Randevu al" to reach the native calendar.
-   Search for **Erkan Kulduk** (İzmir), **Erhan Ergin** (Manisa) or **Ekin Sökmen** (İzmir) for
-   practitioners with open calendars, and complete a booking end to end as a guest.
-2. To see the signed-in patient features (My Appointments, messaging, video consultation, account
-   deletion), sign in with the demo account below.
-
-**Demo account**
-- Login: open the menu → "Giriş" (Sign in).
-- Email: `apple.review@doktorumveben.com`  ·  Password: *entered in App Store Connect → App Review Information*
-- **No SMS or one-time code is required** for this account — signing in with the password above is enough.
+| Nottaki iddia | Kanıt |
+| --- | --- |
+| Apple ile giriş uygulama içinde, native | `native/DVBAppleSignIn.swift` + `DVBAccountView` + 06 numaralı ekran görüntüsünde OCR ile "Sign in with Apple" görüldü (CI kalite kapısı bunu zorunlu tutuyor) |
+| Jeton sunucuda JWKS'e karşı doğrulanıyor | `app/Services/Auth/AppleIdTokenVerifier.php` (prod) |
+| Arama/profil/takvim/randevu SwiftUI | `DVBSearchView` / `DVBDoctorDetailView` / `DVBBookingView` |
+| iPhone Takvimi + yerel hatırlatma | `native/DVBCalendarKit.swift` (`EKEventStore`, `requestWriteOnlyAccessToEvents`) |
+| Kamera/mikrofon/foto/takvim izin metinleri | `scripts/prepare-native-ios.mjs` içinde `NS*UsageDescription` (satır ~152-169) |
+| Girişsiz randevu | canlıda uçtan uca denendi (randevu oluşturuldu, sonra temizlendi) |
+| **Push YOK** | `firebase/GoogleService-Info.plist` mevcut DEĞİL → `pushReady=false` → `aps-environment` entitlement'ı basılmıyor. Bu yüzden not "planned for a later update" diyor. |
+| Export Compliance | `ITSAppUsesNonExemptEncryption=false` Info.plist'e otomatik basılıyor → şifreleme sorusu kendiliğinden geçiyor |
 
 <!--
-İç not (Apple'a gitmiyor):
-- Hesap prod'da user #321, rol `patient`, `is_active=true`, `two_factor_enabled=FALSE`.
+İç not (Apple'a GİTMİYOR):
+- Demo hesap: appstore.review@doktorumveben.com — **CANLIDA DOĞRULANDI 30 Tem 2026:**
+  `users.id = 298`, `is_active = 1`, `two_factor_enabled = 0`, `phone = NULL`,
+  `email_verified_at = 2026-07-25 19:53:40`. Şifre kasten bu depoda TUTULMUYOR;
+  yalnız App Store Connect'in Sign-In alanında saklı.
+  (Bu dosyanın eski sürümlerinde iki HATA vardı: e-posta "apple.review@..." yazıyordu —
+  öyle bir adres YOK; ve "user #321 + telefon 905550000000" yazıyordu — ikisi de yanlış,
+  hesabın telefonu hiç yok. Sorguyla düzeltildi.)
 - 2FA'yı bu hesapta ASLA açmayın. Açılırsa /api/v1/auth/login jeton yerine `requires_otp`
   döner ve SMS bekler; prod'da tanımlı SMS sağlayıcısı YOK (Netgsm boş) → incelemeci
-  kalıcı olarak giriş yapamaz ve uygulama reddedilir.
-- Şifre kasten bu depoda TUTULMUYOR; yalnız App Store Connect'te saklanır.
-- Telefon 905550000000 bilinçli seçildi: oluşturmadan önce users ve patients tablolarında
-  çakışma olmadığı doğrulandı (kayıt akışı telefonu eşleşen misafir hasta kaydını YUTAR;
-  gerçek bir numara seçilse incelemeci başka birinin randevularını görebilirdi — yutulan
-  kayıt sayısı 0 olarak doğrulandı).
+  kalıcı olarak giriş yapamaz ve uygulama tekrar reddedilir.
+- Telefonun NULL olması iyi: kayıt akışı, telefonu eşleşen misafir hasta kaydını mevcut
+  hesaba BAĞLAR. Bu hesaba gerçek bir numara yazılırsa incelemeci başka birinin
+  randevularını görebilir. Numara EKLEMEYİN.
+- Sürüm yayımı "Manually release this version" seçili: onaydan sonra
+  "Pending Developer Release"de bekler, yayına almak için elle basmak gerekir.
 -->
 
-
-**Payments**
-Appointment fees are payments for **real-world medical services** (Guideline 3.1.3(e)), processed
-by our licensed Turkish payment provider (PayTR). There are no digital goods or subscriptions sold
-to patients, so In-App Purchase does not apply. The doctor-side paid subscription is **not** offered
-inside the iOS app.
-
-**Privacy / tracking**
-The app does **not** track users across other companies' apps or websites; third-party advertising
-SDKs are disabled in the native app context, so no ATT prompt is shown and no "Data used to track
-you" is declared. Health-related data (appointment reason) is used only for app functionality and is
-not shared. Account deletion is available inside the app (Profile → account/data deletion).
-
-**Region & language:** Turkey; content is in Turkish.
-**Support:** destek@doktorumveben.com · https://doktorumveben.com
-
----
-
-## Age rating guidance
-Category **Medical**. In the Age Rating questionnaire, "Medical/Treatment-Focused Content" →
-answer **Infrequent/Mild** (the app is an appointment directory, not medical advice/diagnosis).
-Expected result 12+/13+. Do not overstate — no explicit treatment instructions are provided.
-
-## Reminder before submission
-- Fill the demo credentials above with a real working patient login.
-- Export Compliance: `ITSAppUsesNonExemptEncryption=false` is already set (standard HTTPS only) →
-  answer "No" to the encryption question.
+## Yaş sınırı (Age Rating)
+Kategori **Medical**. Anketde "Medical/Treatment-Focused Content" → **Infrequent/Mild**
+(uygulama randevu dizini, tıbbi teşhis/tedavi tavsiyesi değil). Beklenen sonuç 12+/13+.
+Fazla beyan etme — açık tedavi talimatı verilmiyor.

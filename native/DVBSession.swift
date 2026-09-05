@@ -26,10 +26,33 @@ final class DVBSession: ObservableObject {
         do {
             let me: DVBMe = try await DVBAPI.shared.get("auth/me", token: token)
             user = me.user
+            await ajandayiTazele()
         } catch DVBError.unauthorized {
             signOut()
         } catch {
             // Ağ yoksa oturumu DÜŞÜRME — çevrimdışı açılışta kullanıcı atılmasın.
+        }
+    }
+
+    /// DVB-000111 — Widget'ın göstereceği veriyi tazele.
+    ///
+    /// ⚠ WIDGET'I BESLEYEN TEK YER BURASI. Widget uzantısı ağa çıkmaz (kendi jetonu
+    /// yok, çalışma süresi çok kısa); yalnız App Group'taki önbelleği okur. Uygulama
+    /// bu çağrıyı yapmazsa widget SONSUZA KADAR BOŞ kalır — sessiz bir arıza olurdu,
+    /// bu yüzden burada duruyor ve her açılışta koşuyor.
+    ///
+    /// Hata YUTULUR: widget verisi ikincildir, tazelenemedi diye oturum akışı bozulmaz.
+    /// Önbellekte eski veri kalır; widget "N saat önce güncellendi" yazar.
+    func ajandayiTazele() async {
+        guard let token else { return }
+        do {
+            let ajanda: DVBAgenda = try await DVBAPI.shared.get("my/doctor/agenda", token: token)
+            if let ham = try? JSONEncoder().encode(ajanda) {
+                DVBOfflineStore.yazAjanda(ham)
+                DVBOfflineStore.widgetiYenile()
+            }
+        } catch {
+            // sessiz: ağ yoksa eski önbellek geçerli kalır
         }
     }
 

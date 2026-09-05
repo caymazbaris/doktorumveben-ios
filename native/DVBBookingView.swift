@@ -132,10 +132,9 @@ struct DVBBookingView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await slotlariGetir() }
         .onAppear(perform: kullanicidanDoldur)
+        // DVB-000110 — web sheet kaldırıldı, talep native alınıyor (bkz. DVBRequestView).
         .sheet(isPresented: $showRequestSheet) {
-            if let url = DVBBookingView.absoluteWebURL("/randevu-talebi/\(doctor.slug)") {
-                DVBWebSheet(url: url, title: "Randevu Talebi")
-            }
+            DVBRequestView(doctorSlug: doctor.slug, doctorName: doctor.name ?? "Hekim")
         }
     }
 

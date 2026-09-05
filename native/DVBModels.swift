@@ -203,3 +203,58 @@ struct DVBCity: Decodable, Identifiable {
     let name: String
     let slug: String
 }
+
+// MARK: - Randevu talebi (DVB-000110)
+
+/// POST /doctors/{slug}/request yanıtı.
+///
+/// Aday hekimde (yayındaki hekimlerin %100'ü) randevu ALINMAZ, TALEP bırakılır.
+/// Onay metni sunucudan gelir: kural değişince mağaza güncellemesi beklemeyelim diye.
+struct DVBRequestResult: Decodable {
+    let request: Detail?
+    let message: String?
+
+    struct Detail: Decodable {
+        let refCode: String?
+        let status: String?
+        let doctorName: String?
+        let preferredDate: String?
+        let preferredSlot: String?
+
+        enum CodingKeys: String, CodingKey {
+            case status
+            case refCode = "ref_code"
+            case doctorName = "doctor_name"
+            case preferredDate = "preferred_date"
+            case preferredSlot = "preferred_slot"
+        }
+    }
+}
+
+// MARK: - Ana ekran widget'ı (DVB-000111)
+
+/// GET /my/doctor/agenda yanıtı. Tek uç iki rol:
+///   role == "doctor"  → bugünkü ajanda, hasta adları MASKELİ ("Ba*** Ca***")
+///   role == "patient" → kendi yaklaşan randevusu, hekim adı açık
+struct DVBAgenda: Codable {
+    let role: String?
+    let title: String?
+    let count: Int?
+    let next: Entry?
+    let items: [Entry]?
+    let refreshAfterSeconds: Int?
+
+    struct Entry: Codable, Identifiable {
+        let time: String?
+        let date: String?
+        let name: String?
+        let status: String?
+
+        var id: String { (date ?? "") + (time ?? "") + (name ?? "") }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case role, title, count, next, items
+        case refreshAfterSeconds = "refresh_after_seconds"
+    }
+}

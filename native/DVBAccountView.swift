@@ -7,6 +7,9 @@ struct DVBAccountView: View {
 
     @EnvironmentObject private var session: DVBSession
 
+    /// DVB-000111 — kilit ayarı köke bağlı; buradan yalnız açılıp kapatılır.
+    @EnvironmentObject private var lock: DVBBiometricLock
+
     @State private var email = ""
     @State private var password = ""
     @State private var busy = false
@@ -47,6 +50,21 @@ struct DVBAccountView: View {
                 }
                 NavigationLink(destination: DVBConsentsView()) {
                     Label("Onam formlarım", systemImage: "signature")
+                }
+            }
+
+            // DVB-000111 — biyometrik kilit. Cihaz desteklemiyorsa bölüm HİÇ gösterilmez;
+            // açılamayacak bir anahtar göstermek kullanıcıya "bozuk" hissi verir.
+            if DVBBiometricLock.kullanilabilir().evet {
+                Section {
+                    Toggle(isOn: $lock.etkin) {
+                        Label(
+                            "\(DVBBiometricLock.kullanilabilir().ad) ile kilitle",
+                            systemImage: "faceid"
+                        )
+                    }
+                } footer: {
+                    Text("Açıkken uygulama her açılışta ve arka plandan dönüşte kimliğinizi sorar. Bu bir ekran perdesidir; verileriniz sunucuda oturumunuzla korunur.")
                 }
             }
 

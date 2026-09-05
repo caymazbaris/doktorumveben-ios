@@ -201,7 +201,19 @@ const pushReady = fs.existsSync(path.join(root, 'firebase/GoogleService-Info.pli
 // "provisioning profile ... doesn't include com.apple.developer.applesignin"
 // ile DÜŞER. (Web akışı için Services ID zaten bu App ID'ye bağlı olduğundan
 // capability büyük olasılıkla açık; build hata verirse ilk bakılacak yer bu.)
+// DVB-000111 — APP GROUP. Widget uzantısı AYRI bir süreçte çalışır ve uygulamanın
+// sandbox'ını göremez; ortak kap olmadan widget'ın okuyacağı veri hiç oluşmaz.
+// Uygulama tarafı (DVBOfflineStore) bu grup yoksa standard UserDefaults'a düşer —
+// yani uygulama çalışmaya devam eder, YALNIZ widget boş kalır. Bilinçli düşüş.
+//
+// ÖN KOŞUL: Apple Developer'da App ID üzerinde "App Groups" capability AÇIK ve
+// `group.com.doktorumveben.app` tanımlı olmalı. Kapalıysa imzalama
+// "provisioning profile ... doesn't include com.apple.security.application-groups"
+// ile DÜŞER — bu, push/applesignin ile birebir aynı tuzak.
+const APP_GROUP = 'group.com.doktorumveben.app';
+
 const entInner = '\t<key>com.apple.developer.applesignin</key>\n\t<array>\n\t\t<string>Default</string>\n\t</array>\n'
+  + `\t<key>com.apple.security.application-groups</key>\n\t<array>\n\t\t<string>${APP_GROUP}</string>\n\t</array>\n`
   + (pushReady ? '\t<key>aps-environment</key>\n\t<string>production</string>\n' : '');
 write(entPath, `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -210,9 +222,9 @@ write(entPath, `<?xml version="1.0" encoding="UTF-8"?>
 ${entInner}</dict>
 </plist>
 `);
-say(pushReady
-  ? 'App.entitlements yazıldı (aps-environment: production — push aktif).'
-  : 'App.entitlements yazıldı (push YOK — firebase/GoogleService-Info.plist eklenince otomatik açılır).');
+say(`App.entitlements yazıldı (App Group: ${APP_GROUP}` + (pushReady
+  ? '; aps-environment: production — push aktif).'
+  : '; push YOK — firebase/GoogleService-Info.plist eklenince otomatik açılır).'));
 
 // ── 3) PrivacyInfo.xcprivacy (ZORUNLU privacy manifest, YOL B = tracking yok) ─
 const privPath = path.join(appDir, 'PrivacyInfo.xcprivacy');

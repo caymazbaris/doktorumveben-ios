@@ -154,10 +154,15 @@ struct DVBDoctorDetailView: View {
         .navigationTitle(doctor.name ?? "Hekim")
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
+        // DVB-000110 — ARTIK WEB AÇMIYOR. Önceden burada DVBWebSheet vardı ve aday
+        // hekimlerde (yayındaki hekimlerin %100'ü) uygulamanın ANA eylemi tarayıcıya
+        // düşüyordu; Apple'ın 31.07.2026 tarihli 4.2.2 reddi tam bunu tarif ediyor.
+        // Talep artık native formda alınıyor (POST /doctors/{slug}/request).
         .sheet(isPresented: $showRequestSheet) {
-            if let url = DVBDoctorDetailView.absoluteWebURL(detail?.doctor.requestPath) {
-                DVBWebSheet(url: url, title: "Randevu Talebi")
-            }
+            DVBRequestView(
+                doctorSlug: doctor.slug,
+                doctorName: detail?.doctor.name ?? doctor.name ?? "Hekim"
+            )
         }
     }
 

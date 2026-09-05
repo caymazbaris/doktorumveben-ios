@@ -55,6 +55,17 @@ workflows:
         # yazdıktan sonra sonucu doğrular; tutarsızlıkta derlemeyi DURDURUR — bozuk
         # bir pbxproj Xcode'un projeyi hiç açamamasına yol açar.
         script: node scripts/inject-native-swift.mjs
+      - name: Widget hedefini ekle (DVB-000111 — ana ekran widget'ı)
+        # Widget AYRI bir Xcode hedefi ister. pbxproj'u elle metin olarak kesmek yerine
+        # `xcodeproj` gem'i kullanılıyor — bu iş için yazılmış araç.
+        #
+        # ⚠ BU ADIM DERLEMEYİ ASLA DURDURMAZ (betik her hatayı yakalayıp exit 0 verir ve
+        # pbxproj'u yedekten geri koyar). Gerekçe: widget güzel bir ek, ama onun yüzünden
+        # 4.2 düzeltmelerini taşıyan sürümün hiç çıkamaması kabul edilemez.
+        # Widget eklenmezse günlükte "[UYARI] widget hedefi eklenmedi: ..." görünür.
+        script: |
+          gem list -i xcodeproj >/dev/null 2>&1 || gem install xcodeproj --no-document
+          ruby scripts/add-widget-target.rb
       - name: CocoaPods + yapı teşhisi (.xcworkspace pod install ile üretilir)
         script: |
           echo "=== ios/ (2 seviye) ==="; find ios -maxdepth 2 2>/dev/null || echo "ios/ YOK"
@@ -157,6 +168,11 @@ workflows:
         script: node scripts/prepare-native-ios.mjs
       - name: SwiftUI katmanını enjekte et
         script: node scripts/inject-native-swift.mjs
+      - name: Widget hedefini ekle
+        # Bkz. yukarıdaki iş akışındaki uzun gerekçe. Hata durumunda derleme DURMAZ.
+        script: |
+          gem list -i xcodeproj >/dev/null 2>&1 || gem install xcodeproj --no-document
+          ruby scripts/add-widget-target.rb
       - name: CocoaPods (varsa)
         # Capacitor 8 bağımlılıkları Swift Package Manager ile çözüyor; Podfile HİÇ
         # üretilmiyor. İlk denemede burada sert hata verip build'i düşürdüm — release
