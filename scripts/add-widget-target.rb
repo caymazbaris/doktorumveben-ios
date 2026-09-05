@@ -87,8 +87,22 @@ begin
     <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
     <plist version="1.0">
     <dict>
+    \t<key>CFBundleDevelopmentRegion</key>
+    \t<string>$(DEVELOPMENT_LANGUAGE)</string>
     \t<key>CFBundleDisplayName</key>
     \t<string>Randevularım</string>
+    \t<key>CFBundleExecutable</key>
+    \t<string>$(EXECUTABLE_NAME)</string>
+    \t<key>CFBundleIdentifier</key>
+    \t<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    \t<key>CFBundleName</key>
+    \t<string>$(PRODUCT_NAME)</string>
+    \t<key>CFBundlePackageType</key>
+    \t<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+    \t<key>CFBundleShortVersionString</key>
+    \t<string>$(MARKETING_VERSION)</string>
+    \t<key>CFBundleVersion</key>
+    \t<string>$(CURRENT_PROJECT_VERSION)</string>
     \t<key>NSExtension</key>
     \t<dict>
     \t\t<key>NSExtensionPointIdentifier</key>
@@ -138,6 +152,12 @@ begin
 
   widget.build_configurations.each do |c|
     c.build_settings.merge!(
+      # ⚠ PRODUCT_NAME ŞART — ilk denemede yazmamıştım ve derleme şöyle düştü:
+      #   error: Multiple commands produce '.../UninstalledProducts/iphoneos/.appex'
+      # Ürün adı boş kalınca uzantının çıktısı ".appex" oluyor; iki görev aynı adsız
+      # dosyayı üretmeye çalışıyor ve Xcode arşivi reddediyor. Hata mesajı "multiple
+      # commands" dediği için yanıltıcı: asıl sebep çakışma değil, EKSİK AD.
+      'PRODUCT_NAME'                       => '$(TARGET_NAME)',
       'PRODUCT_BUNDLE_IDENTIFIER'          => "#{BUNDLE_ID}.widget",
       'INFOPLIST_FILE'                     => "#{WIDGET_NAME}/Info.plist",
       'CODE_SIGN_ENTITLEMENTS'             => "#{WIDGET_NAME}/#{WIDGET_NAME}.entitlements",
