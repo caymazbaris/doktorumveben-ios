@@ -45,7 +45,12 @@ struct DVBRootView: View {
         .task { await session.restore() }
         // DVB-000111 — kilit perdesi EN DIŞTA: sekme çubuğu dahil her şeyi örtmeli.
         .dvbKilit(lock)
-        .onChange(of: scenePhase) { _, yeni in
+        // ⚠ TEK PARAMETRELİ onChange BİLEREK: iki parametreli biçim (oldValue, newValue)
+        // iOS 17+ İSTER. Projenin deployment target'ı Capacitor şablonundan geliyor ve
+        // depoda sabitlenmiş değil; daha düşükse iki parametreli biçim DERLEME HATASI verir.
+        // Tek parametreli biçim iOS 17'de yalnızca "deprecated" uyarısı üretir — uyarı
+        // derlemeyi durdurmaz, hata durdurur. Bilinmeyen hedefte uyarıyı seçiyoruz.
+        .onChange(of: scenePhase) { yeni in
             // Uygulama arka plana veya görev değiştiriciye geçtiğinde yeniden kilitle.
             // .inactive de dahil: görev değiştirici önizlemesi ekranın fotoğrafını çeker.
             if yeni != .active { lock.arkaPlanaGitti() }

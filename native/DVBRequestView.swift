@@ -47,7 +47,11 @@ struct DVBRequestView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        // ⚠ NavigationStack DEĞİL: o iOS 16+ ister. Depodaki diğer altı ekranın
+        // tamamı NavigationView kullanıyor (DVBAccountView, DVBSearchView, ...),
+        // yani proje daha düşük bir hedefe kurulu. Tek başıma NavigationStack
+        // yazmak derlemeyi kırardı — hizayı bozmuyorum.
+        NavigationView {
             Group {
                 if let sonuc {
                     onayEkrani(sonuc)
@@ -112,8 +116,15 @@ struct DVBRequestView: View {
             }
 
             Section {
-                TextField("Eklemek istedikleriniz", text: $not, axis: .vertical)
-                    .lineLimit(3...6)
+                // ⚠ `axis: .vertical` ve aralıklı `lineLimit(3...6)` iOS 16+ ister.
+                // Hedef sürüm depoda sabit olmadığı için kapıyla veriyoruz; düşük
+                // hedefte tek satırlık alan görünür ama DERLEME KIRILMAZ.
+                if #available(iOS 16.0, *) {
+                    TextField("Eklemek istedikleriniz", text: $not, axis: .vertical)
+                        .lineLimit(3...6)
+                } else {
+                    TextField("Eklemek istedikleriniz", text: $not)
+                }
             } header: {
                 Text("Not (isteğe bağlı)")
             } footer: {

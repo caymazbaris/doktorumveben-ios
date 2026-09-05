@@ -149,8 +149,16 @@ struct DVBWidget: Widget {
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: DVBAgendaProvider()) { entry in
-            DVBWidgetView(entry: entry)
-                .containerBackground(.fill.tertiary, for: .widget)
+            // ⚠ containerBackground iOS 17+. iOS 17'de widget'lar bu olmadan
+            // "yer tutucu" gibi görünür; ama daha düşük hedefte koşulsuz yazmak
+            // DERLEME HATASI olur. Sürüm kapısı ikisini de karşılıyor.
+            if #available(iOS 17.0, *) {
+                DVBWidgetView(entry: entry)
+                    .containerBackground(.fill.tertiary, for: .widget)
+            } else {
+                DVBWidgetView(entry: entry)
+                    .padding()
+            }
         }
         .configurationDisplayName("Randevularım")
         .description("Hekimseniz bugünkü ajandanız, hastaysanız yaklaşan randevunuz. Hasta adları maskelidir.")
