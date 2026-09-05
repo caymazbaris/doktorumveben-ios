@@ -23,7 +23,10 @@ struct DVBRequestView: View {
     @State private var eposta = ""
     @State private var tercihTarih = Date()
     @State private var tarihSecili = false
-    @State private var tercihDilim: String? = nil
+    /// Varsayılan 'any' ("Fark etmez") — sunucudaki listenin ilk maddesi.
+    /// Tipi String? DEĞİL String: Picker'ın tag tipiyle seçim tipi birebir aynı
+    /// olmalı, yoksa SwiftUI seçimi sessizce hiç uygulamaz (derleme hatası vermez).
+    @State private var tercihDilim: String = "any"
     @State private var ilkZiyaret = false
     @State private var not = ""
     @State private var riza = false
@@ -32,11 +35,17 @@ struct DVBRequestView: View {
     @State private var hata: String? = nil
     @State private var sonuc: DVBRequestResult? = nil
 
-    /// Sunucudaki AppointmentRequest::SLOTS ile aynı anahtarlar.
+    /// AppointmentRequest::SLOTS ile BİREBİR aynı — anahtar VE etiket.
+    ///
+    /// ⚠ İlk yazışımda etiketleri kısaltmıştım ("Sabah") ve 'any' seçeneğini hiç
+    /// koymamıştım. İkisi de sessiz kusurdu: hasta uygulamada "Sabah", sitede
+    /// "Sabah (09:00-12:00)" görecekti — saat aralığı hastanın kararını etkileyen
+    /// bilgidir. Sunucudaki liste tek kaynaktır; değişirse burası da değişmeli.
     private let dilimler: [(String, String)] = [
-        ("morning", "Sabah"),
-        ("afternoon", "Öğleden sonra"),
-        ("evening", "Akşam"),
+        ("any", "Fark etmez"),
+        ("morning", "Sabah (09:00-12:00)"),
+        ("afternoon", "Öğleden sonra (12:00-17:00)"),
+        ("evening", "Akşam (17:00 sonrası)"),
     ]
 
     private var gonderilebilir: Bool {
@@ -107,9 +116,11 @@ struct DVBRequestView: View {
                     )
                 }
 
+                // "Fark etmez" artık listenin kendi içinde ('any'), ayrı bir nil
+                // seçeneği YOK — ikisi birlikte dururken aynı anlamda iki satır
+                // görünüyordu ve hangisinin gönderildiği belirsizdi.
                 Picker("Gün içi tercih", selection: $tercihDilim) {
-                    Text("Farketmez").tag(String?.none)
-                    ForEach(dilimler, id: \.0) { Text($0.1).tag(String?.some($0.0)) }
+                    ForEach(dilimler, id: \.0) { Text($0.1).tag($0.0) }
                 }
 
                 Toggle("İlk kez gideceğim", isOn: $ilkZiyaret)
@@ -211,7 +222,7 @@ struct DVBRequestView: View {
             f.dateFormat = "yyyy-MM-dd"
             govde["preferred_date"] = f.string(from: tercihTarih)
         }
-        if let tercihDilim { govde["preferred_slot"] = tercihDilim }
+        govde["preferred_slot"] = tercihDilim
         if !not.trimmingCharacters(in: .whitespaces).isEmpty {
             govde["note"] = not.trimmingCharacters(in: .whitespaces)
         }
