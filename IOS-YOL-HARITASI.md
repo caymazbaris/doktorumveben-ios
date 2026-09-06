@@ -12,7 +12,7 @@
 4. **Native entegrasyonları App Review Notes'ta say:** push, belge yükleme (native dosya/kamera seçici), canvas imza (onam), splash/status bar, offline ekranı. En az bir tam-native ekran güçlendirici.
 5. **Tarayıcı-chrome'u gizle:** URL çubuğu yok, dış linkler in-app SafariViewController'da, uzun-basma menü/loupe bastırılsın.
 6. **ATT'yi çöz** (paralel red kapısı 5.1.2 — §4).
-7. **iPhone-only** (`TARGETED_DEVICE_FAMILY=1`) → iPad görseli zorunlu olmasın + bozuk görünüm reddi olmasın.
+7. ~~**iPhone-only** (`TARGETED_DEVICE_FAMILY=1`)~~ → **06.09.2026 KARARI TERSİNE ÇEVİRDİ:** `TARGETED_DEVICE_FAMILY="1,2"` (iPhone + iPad). Yönetici: "tabletlerde de kullanılsın phone only yapma". Bedeli bilinerek kabul edildi: **13" iPad ekran görüntüsü artık ZORUNLU** ve inceleme iPad düzenini de değerlendirir. (DVB-000121)
 8. **Demo hasta + doktor hesabı + OTP bypass** (reviewer içeri giremezse 2.1/5.1.1 reddi).
 9. **Uygulama içinden "Hesabımı sil" girişi** (5.1.1v).
 10. **iOS'ta doktor üyelik "satın al" akışını GÖSTERME** (3.1.1 IAP riski; randevu ödemesi gerçek-dünya hizmeti = 3.1.3 muaf).
@@ -40,7 +40,7 @@ Referans: kardeş uygulama `C:\ClaudeCrm\doktorumveben-ekip\scripts\prepare-nati
 5. `codemagic.yaml`: `node:20`→**22**, `xcode:latest`→**26.0** pin.
 6. YENİ `.gitignore` (node_modules, ios/, android/, *.p8, *.p12, *.mobileprovision, *.keystore).
 7. `@capacitor/assets` ile ikon/splash göm (icon-only.png 1024 opak, splash.png 2732², splash-dark.png); `capacitor-assets generate --ios`.
-8. `TARGETED_DEVICE_FAMILY=1` (iPhone-only).
+8. `TARGETED_DEVICE_FAMILY="1,2"` (iPhone + iPad — 06.09.2026, DVB-000121).
 9. `PrivacyInfo.xcprivacy` üretimi (§4).
 
 **ORTA:**
@@ -53,7 +53,7 @@ Referans: kardeş uygulama `C:\ClaudeCrm\doktorumveben-ekip\scripts\prepare-nati
 - **App Privacy etiketi (Play Veri Güvenliği ile birebir):** Name/Email/Phone (App Functionality) · Health=randevu/şikayet (App Functionality, **paylaşılmaz/tracking yok**) · Payment Info (kart PayTR'de işlenir/saklanmaz) · Coarse Location (il/ilçe filtresi) · User ID + Device ID (push token) · Product Interaction/GA4 (Analytics; YOL B'de tracking yok). Privacy Policy URL zorunlu.
 
 ## 5) Ekran Görüntüleri — MEVCUT YETERLİ (CONFIRMED)
-Zorunlu tek slot **6.9" iPhone** sınıfı; bu sınıf **1290x2796**'yı kabul eder → elimizdeki `assets/screenshots/6.7-inch-1290x2796/` (4 kare) **karşılar**, yeniden üretme YOK. 6.5"(1242x2688) opsiyonel yedek. iPad görseli GEREKMEZ (iPhone-only). PNG/JPG, sRGB, alfa YOK.
+Zorunlu tek slot **6.9" iPhone** sınıfı; bu sınıf **1290x2796**'yı kabul eder → elimizdeki `assets/screenshots/6.7-inch-1290x2796/` (4 kare) **karşılar**, yeniden üretme YOK. 6.5"(1242x2688) opsiyonel yedek. **iPad görseli GEREKİR** (13" iPad; uygulama 06.09.2026'dan beri iPad destekliyor). Ekran görüntüsü iş akışı `DVB_SHOT_DEVICE=ipad` ile ikinci kez koşturularak üretilir. PNG/JPG, sRGB, alfa YOK.
 
 ## 6) Codemagic Mac'siz — CONFIRMED
 Bulut Mac mini'de derler+imzalar+TestFlight'a yükler; fiziksel Mac yok. `ios_signing{distribution_type:app_store, bundle_identifier:com.doktorumveben.app}` + `integrations: app_store_connect: DoktorumvebenASC` (Codemagic sertifika+profili Apple'dan çeker). Tek düzeltme: `auth: integration` tekil (§3-3). Öneri: `cap sync ios` sonrası açık `cd ios/App && pod install`. Tuzak: bundle_id her yerde aynı; com.doktorumveben.app (bu) ≠ com.doktorumveben.ekip (kardeş).

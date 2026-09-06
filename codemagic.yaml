@@ -254,13 +254,36 @@ workflows:
             return 1
           }
 
-          # Apple bugün 6.9" istiyor; 6.5" ikinci set olarak kabul ediliyor.
-          DT_BUYUK=$(sec_tip \
-            com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro-Max \
-            com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro-Max \
-            com.apple.CoreSimulator.SimDeviceType.iPhone-15-Pro-Max \
-            com.apple.CoreSimulator.SimDeviceType.iPhone-14-Pro-Max) || { echo "HATA: Pro Max cihaz tipi yok"; exit 1; }
-          echo "Cihaz tipi: $DT_BUYUK"
+          # DVB-000121 — yönetici kararı 06.09.2026: "tabletlerde de kullanılsın".
+          # Uygulama artık iPhone + iPad (TARGETED_DEVICE_FAMILY="1,2"), bu yüzden
+          # App Store Connect 13" iPad ekran görüntüsü de İSTER; iPad görüntüsü
+          # yüklenmeden gönderim düğmesi açılmaz.
+          #
+          # Çalışan iPhone hattı YENİDEN YAZILMADI: yalnız cihaz seçimi ve çıktı
+          # dizini değişkene bağlandı. Aynı iş akışı DVB_SHOT_DEVICE=ipad ile
+          # ikinci kez koşturulunca iPad takımını üretir. Varsayılan eskisi gibi
+          # iPhone — mevcut davranış değişmiyor.
+          case "${DVB_SHOT_DEVICE:-iphone}" in
+            ipad)
+              SET_ADI="13-inch-ipad"
+              DT_BUYUK=$(sec_tip \
+                com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M4-8GB \
+                com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M4 \
+                com.apple.CoreSimulator.SimDeviceType.iPad-Pro-12-9-inch-6th-generation-8GB \
+                com.apple.CoreSimulator.SimDeviceType.iPad-Pro--12-9-inch---6th-generation) \
+                || { echo "HATA: 13 inc iPad cihaz tipi yok"; xcrun simctl list devicetypes | grep -i ipad; exit 1; }
+              ;;
+            *)
+              # Apple bugün 6.9" istiyor; 6.5" ikinci set olarak kabul ediliyor.
+              SET_ADI="6.9-inch"
+              DT_BUYUK=$(sec_tip \
+                com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro-Max \
+                com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro-Max \
+                com.apple.CoreSimulator.SimDeviceType.iPhone-15-Pro-Max \
+                com.apple.CoreSimulator.SimDeviceType.iPhone-14-Pro-Max) || { echo "HATA: Pro Max cihaz tipi yok"; exit 1; }
+              ;;
+          esac
+          echo "Takım: $SET_ADI · Cihaz tipi: $DT_BUYUK"
 
           UDID=$(xcrun simctl create "DVBShot" "$DT_BUYUK" "$RT")
           echo "UDID: $UDID"
@@ -285,7 +308,7 @@ workflows:
           # MUTLAK yol ŞART: ekran görüntüsünü CoreSimulator servisi yazıyor, bu kabuk
           # değil — göreli yolu bizim çalışma dizinimize göre çözemiyor ve
           # "The folder ... doesn't exist" ile düşüyor (ilk denemede tam bu oldu).
-          OUT="$PWD/screenshots/6.9-inch"
+          OUT="$PWD/screenshots/$SET_ADI"
           mkdir -p "$OUT"
           echo "Çıktı dizini: $OUT"
 

@@ -7,7 +7,7 @@
  *  1) Info.plist — kamera/mikrofon/foto izin AÇIKLAMALARI (görüntülü muayene + belge yükleme).
  *     Yoksa hem getUserMedia çöker HEM Apple "eksik amaç dizesi" ile reddeder.
  *  2) App.entitlements — aps-environment=production (push). Yoksa iOS cihaz token'ı üretmez.
- *  3) project.pbxproj — CODE_SIGN_ENTITLEMENTS bağla + TARGETED_DEVICE_FAMILY=1 (iPhone-only).
+ *  3) project.pbxproj — CODE_SIGN_ENTITLEMENTS bağla + TARGETED_DEVICE_FAMILY="1,2" (iPhone + iPad).
  *  4) PrivacyInfo.xcprivacy — 2024'ten beri ZORUNLU privacy manifest (required-reason API'lar
  *     + NSPrivacyTracking=false → ATT gerekmez, "tracking yok").
  *  5) firebase/GoogleService-Info.plist varsa kopyala (FCM/push için). Yoksa UYARIR (durdurmaz).
@@ -282,16 +282,36 @@ if (!pbx.includes('CODE_SIGN_ENTITLEMENTS')) {
   );
   say('CODE_SIGN_ENTITLEMENTS build ayarı eklendi.');
 }
-// 4b) iPhone-only (iPad görseli zorunluluğunu ve bozuk iPad görünümü reddini önler)
-if (/TARGETED_DEVICE_FAMILY = "1,2";/.test(pbx)) {
-  pbx = pbx.replace(/TARGETED_DEVICE_FAMILY = "1,2";/g, 'TARGETED_DEVICE_FAMILY = 1;');
-  say('TARGETED_DEVICE_FAMILY = 1 (iPhone-only) ayarlandı.');
+// 4b) iPhone + iPad (DVB-000121 — yönetici kararı, 06.09.2026:
+//     "tabletlerde de kullanılsın phone only yapma")
+//
+// ⚠ ÖNCEKİ YÖN TERSİYDİ ve gerekçesi vardı: iPhone-only, iPad ekran görüntüsü
+// zorunluluğunu ve "iPad'de gevşek düzen" değerlendirmesini kaldırıyordu. Karar
+// bilinçli olarak değişti; gerekçe silinmiyor ki neyin göze alındığı kayıtta kalsın.
+//
+// ⚠ İPHONE-ONLY AYARI ZATEN İŞLİYORDU — build 13'ün App Store Connect'teki kendi
+// verisinde "Device Family: iPhone" yazıyor. DVB-000121'in ilk varsayımı ("ayar
+// işlememiş") YANLIŞTI: incelemenin iPad'de yapılmasının sebebi ayarın tutmaması
+// değil, iPhone uygulamalarının iPad'de uyumluluk kipinde zaten çalışmasıdır.
+//
+// ⚠ İPAD'İ AÇMANIN İKİ BEDELİ VAR, ikisi de bilinçli kabul edildi:
+//   1) App Store Connect artık iPad ekran görüntüsü İSTER (13" iPad). Gönderimden
+//      önce yüklenmeli, yoksa gönderim düğmesi açılmaz.
+//   2) İnceleme artık iPad düzenini de değerlendirir. Bu yüzden aynı turda
+//      DVBRequestView'a .navigationViewStyle(.stack) eklendi: NavigationView
+//      iPad'de çift sütuna düşüp sağda BOŞ bölme bırakıyordu.
+const IPAD_DAHIL = '"1,2"';
+if (/TARGETED_DEVICE_FAMILY = 1;/.test(pbx)) {
+  pbx = pbx.replace(/TARGETED_DEVICE_FAMILY = 1;/g, `TARGETED_DEVICE_FAMILY = ${IPAD_DAHIL};`);
+  say(`TARGETED_DEVICE_FAMILY = ${IPAD_DAHIL} (iPhone + iPad) ayarlandı.`);
 } else if (!/TARGETED_DEVICE_FAMILY/.test(pbx)) {
   pbx = pbx.replace(
     /(PRODUCT_BUNDLE_IDENTIFIER = [^;]+;)/g,
-    '$1\n\t\t\t\tTARGETED_DEVICE_FAMILY = 1;',
+    `$1\n\t\t\t\tTARGETED_DEVICE_FAMILY = ${IPAD_DAHIL};`,
   );
-  say('TARGETED_DEVICE_FAMILY = 1 eklendi.');
+  say(`TARGETED_DEVICE_FAMILY = ${IPAD_DAHIL} eklendi.`);
+} else {
+  say(`TARGETED_DEVICE_FAMILY zaten ${IPAD_DAHIL} — dokunulmadı.`);
 }
 write(pbxPath, pbx);
 

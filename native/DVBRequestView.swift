@@ -76,6 +76,12 @@ struct DVBRequestView: View {
                 }
             }
         }
+        // ⚠ DVB-000121 — iPAD'DE ŞART. NavigationView iPad'de varsayılan olarak
+        // ÇİFT SÜTUNA düşer: solda form, sağda BOŞ bir bölme. Uygulama "yarısı
+        // yüklenmemiş" gibi görünür. Depodaki diğer altı ekran bunu zaten
+        // yapıyordu, burada eksikti — ve burası 4.2'yi çözen native talep formu,
+        // yani incelemenin en çok baktığı ekran.
+        .navigationViewStyle(.stack)
     }
 
     // MARK: - Form
