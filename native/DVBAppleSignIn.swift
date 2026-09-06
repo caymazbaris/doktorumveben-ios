@@ -81,8 +81,16 @@ struct DVBAppleSignInButton: View {
                     Task { await girisYap(yetki) }
                 case let .failure(hata):
                     // Kullanıcı iptal ettiyse hata GÖSTERMEYİZ; bu bir arıza değil.
-                    if (hata as? ASAuthorizationError)?.code != .canceled {
-                        error = "Apple ile giriş tamamlanamadı."
+                    let kod = (hata as? ASAuthorizationError)?.code
+                    if kod != .canceled {
+                        // DVB-000119 — App Store 1.0 (13) "An error occurred during Sign in
+                        // with Apple login process" dedi ve elimizde HİÇBİR ayrıntı yoktu:
+                        // Apple'ın kendi hata kodu hiçbir yere yazılmıyordu. Kodu mesaja
+                        // koyuyoruz ki bir ekran görüntüsü bile hangi halkanın koptuğunu
+                        // söylesin (1000 = bilinmeyen/yetkilendirme, 1001 = geçersiz yanıt,
+                        // 1004 = ağ). Kullanıcı için anlamsız ama zararsız; teşhis için şart.
+                        let ek = kod.map { " (kod \($0.rawValue))" } ?? ""
+                        error = "Apple ile giriş tamamlanamadı\(ek)."
                     }
                     // Nonce tek kullanımlık: her denemede yenilenmeli.
                     nonce = DVBAppleSignIn.yeniNonce()
