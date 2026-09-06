@@ -141,12 +141,22 @@ struct DVBAccountView: View {
                 Text("Apple ile giriş yaparsanız e-postanızı gizli tutabilirsiniz; hesabınızı uygulama içinden her zaman silebilirsiniz.")
             }
 
+            // Yönetici isteği (06.09.2026): "üye ol ve parolamı unuttum yazıları ortalansın".
+            // Form satırı düğmeyi sola yaslar; frame(maxWidth: .infinity) satırın tam
+            // genişliğini alır, .center onu ortalar. Dokunma alanı daralmasın diye
+            // hizalama Text'e değil DÜĞMENİN kendisine veriliyor — yalnız yazıyı
+            // ortalasaydık satırın kenarları tıklanmaya devam eder ama görsel olarak
+            // düğmenin nerede bittiği belirsiz kalırdı.
             Section {
-                Button("Üye ol") {
+                Button {
                     webSheet = .init(url: DVBConfig.webBase.appendingPathComponent("uye-ol"))
+                } label: {
+                    Text("Üye ol").frame(maxWidth: .infinity, alignment: .center)
                 }
-                Button("Parolamı unuttum") {
+                Button {
                     webSheet = .init(url: DVBConfig.webBase.appendingPathComponent("sifremi-unuttum"))
+                } label: {
+                    Text("Parolamı unuttum").frame(maxWidth: .infinity, alignment: .center)
                 }
             }
         }
