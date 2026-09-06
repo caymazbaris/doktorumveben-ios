@@ -27,7 +27,15 @@ workflows:
     scripts:
       - name: Bağımlılıkları kur
         # --include=dev ŞART: @capacitor/cli ve @capacitor/assets devDependencies'te.
-        script: npm install --include=dev
+        #
+        # ⚠ `npm install` DEĞİL `npm ci` (DVB-000124). Depoda package-lock.json YOKTU;
+        # `npm install` her derlemede `^8.4.2` aralığının o günkü en yenisini çekiyordu.
+        # Capacitor 8.5.1 iOS şablonunu SAHNE (UIScene) yaşam döngüsüne geçirdi ve
+        # native kökümüz sessizce devre dışı kaldı — uygulama açılışta web sitesini
+        # göstermeye başladı. Kodda tek satır değişmeden, üç derleme boyunca (12/13/14).
+        # `npm ci` kilit dosyasındaki SÜRÜMÜN AYNISINI kurar: araç zinciri artık
+        # bizim kararımızla değişir, takvimle değil.
+        script: npm ci --include=dev
       - name: iOS platformunu ekle + senkronla
         script: |
           if [ ! -d ios ]; then npx cap add ios; fi
@@ -170,7 +178,8 @@ workflows:
       cocoapods: default
     scripts:
       - name: Bağımlılıkları kur
-        script: npm install --include=dev
+        # Bkz. yayın iş akışındaki gerekçe (DVB-000124): sürüm kilidi şart.
+        script: npm ci --include=dev
       - name: iOS platformunu ekle + senkronla
         script: |
           if [ ! -d ios ]; then npx cap add ios; fi

@@ -21,10 +21,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
-        let window = UIWindow(frame: UIScreen.main.bounds)
-        window.rootViewController = UIHostingController(rootView: DVBRootView())
-        window.makeKeyAndVisible()
-        self.window = window
+        // DVB-000124 — SAHNE VARSA PENCEREYİ BURADA KURMA.
+        // Capacitor 8.5'ten beri Info.plist'te UIApplicationSceneManifest var; o
+        // durumda UIKit AppDelegate.window'u yok sayar ve kökü SceneDelegate kurar
+        // (bkz. SceneDelegate.swift). Burada da bir pencere kurmak iki kök yaratır:
+        // biri hiç gösterilmez, ama makeKeyAndVisible sahne penceresiyle yarışır.
+        // Manifest yoksa (eski şablon) eski yol aynen çalışmaya devam eder.
+        let sahneYasamDongusu = Bundle.main.object(forInfoDictionaryKey: "UIApplicationSceneManifest") != nil
+        if !sahneYasamDongusu {
+            let window = UIWindow(frame: UIScreen.main.bounds)
+            window.rootViewController = UIHostingController(rootView: DVBRootView())
+            window.makeKeyAndVisible()
+            self.window = window
+        }
         return true
     }
 

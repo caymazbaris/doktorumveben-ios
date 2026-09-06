@@ -42,9 +42,31 @@ if (!fs.existsSync(appDelegateSrc)) die('native/AppDelegate.swift yok.');
 fs.copyFileSync(appDelegateSrc, path.join(appDir, 'AppDelegate.swift'));
 say('AppDelegate.swift değiştirildi (kök görünüm: DVBRootView).');
 
-/* ── 2) Swift kaynakları ───────────────────────────────────────────────────── */
+/* ── 1b) SceneDelegate (DVB-000124) ────────────────────────────────────────────
+ * Capacitor 8.5 iOS şablonu SAHNE (UIScene) yaşam döngüsüne geçti: Info.plist'e
+ * UIApplicationSceneManifest eklendi ve şablon kendi SceneDelegate'ini getiriyor;
+ * o da kökü doğrudan CAPBridgeViewController() yapıyor — yani siteyi açan WebView.
+ *
+ * Sahne manifesti varken UIKit AppDelegate.window'u YOK SAYAR. Yani yukarıdaki
+ * AppDelegate değişimi tek başına HİÇBİR İŞE YARAMIYORDU: native ekranlar derleniyor,
+ * ikiliye giriyor, ama uygulama açılışta doktorumveben.com'u gösteriyordu. App Store
+ * 4.2'nin ("paketlenmiş web sitesi") çözüldüğü sanılan durum sessizce geri gelmişti.
+ *
+ * ⚠ KOD TARAFINDA HİÇBİR ŞEY DEĞİŞMEDEN OLDU. Değişen, depoda package-lock.json
+ * OLMADIĞI için CI'nın çektiği Capacitor sürümüydü (8.4.x → 8.5.1).
+ */
+const sceneDelegateSrc = path.join(nativeDir, 'SceneDelegate.swift');
+if (!fs.existsSync(sceneDelegateSrc)) die('native/SceneDelegate.swift yok — sahne kökü kurulamaz.');
+fs.copyFileSync(sceneDelegateSrc, path.join(appDir, 'SceneDelegate.swift'));
+say('SceneDelegate.swift değiştirildi (sahne kökü: DVBRootView).');
+
+/* ── 2) Swift kaynakları ───────────────────────────────────────────────────────
+ * AppDelegate ve SceneDelegate App/ kökünde ŞABLON DOSYASININ ÜZERİNE yazılır;
+ * App/Native/ altına ikinci bir kopya konursa sınıf adı iki kez tanımlanır ve
+ * derleme kırılır.
+ */
 const sources = fs.readdirSync(nativeDir)
-  .filter((f) => f.endsWith('.swift') && f !== 'AppDelegate.swift')
+  .filter((f) => f.endsWith('.swift') && f !== 'AppDelegate.swift' && f !== 'SceneDelegate.swift')
   .sort();
 
 if (sources.length === 0) die('native/ içinde DVB*.swift yok.');
@@ -68,6 +90,55 @@ if (storyboardKey.test(plist)) {
   die('Info.plist içinde UIMainStoryboardFile var ama beklenen biçimde değil — elle bakılmalı.');
 } else {
   say('Info.plist zaten storyboard köksüz.');
+}
+
+/* ── 3b) Sahne yapılandırmasından storyboard'u kaldır (DVB-000124) ────────────
+ * Capacitor 8.5 şablonu sahneyi Main storyboard'una bağlıyor:
+ *     <key>UISceneStoryboardFile</key><string>Main</string>
+ * Kökü SceneDelegate'imiz kuruyor; bu anahtar kalırsa UIKit ayrıca storyboard'u
+ * örnekler — gereksiz bir WebView örneği ve açılışta görünen bir kırpışma.
+ */
+const sceneStoryboard = /\s*<key>UISceneStoryboardFile<\/key>\s*\n\s*<string>Main<\/string>/;
+if (sceneStoryboard.test(plist)) {
+  plist = plist.replace(sceneStoryboard, '');
+  fs.writeFileSync(plistPath, plist, 'utf8');
+  say('Info.plist: UISceneStoryboardFile kaldırıldı (sahne kökü SceneDelegate\'te).');
+}
+
+/* ── 3c) SERT KAPI: native kök gerçekten devrede mi? ──────────────────────────
+ * ⚠ BU KAPI, DVB-000124'ÜN TEKRARINI ÖNLEMEK İÇİN VAR.
+ *
+ * Önceki hâlde betik "AppDelegate değiştirildi" deyip başarıyla bitiyordu ve
+ * hiçbir şey yanlış görünmüyordu — oysa sahne yaşam döngüsü yüzünden o AppDelegate
+ * hiç ekrana gelmiyordu. Hata, üç derleme boyunca (12, 13, 14) fark edilmeden
+ * mağazaya gitti. Kusur kodda değil, "yaptım" demenin kanıtlanmamış olmasındaydı.
+ *
+ * Bundan sonra: sahne manifesti varsa, o sahnenin delegesi BİZİM kökümüzü kurmuyorsa
+ * derleme DURUR.
+ */
+const sonPlist = fs.readFileSync(plistPath, 'utf8');
+if (sonPlist.includes('UIApplicationSceneManifest')) {
+  const sceneDelegateOut = path.join(appDir, 'SceneDelegate.swift');
+  const icerik = fs.existsSync(sceneDelegateOut) ? fs.readFileSync(sceneDelegateOut, 'utf8') : '';
+
+  // ⚠ ATAMAYA bakılır, kelimeye DEĞİL. İlk sürüm `includes('CAPBridgeViewController')`
+  // diyordu ve kendi dosyamızın YORUMUNDA geçen sözcüğe takılıp derlemeyi durdurdu.
+  // Yanlış pozitif veren bir kapı, kapalı bir kapı kadar zararlıdır: insan onu
+  // devre dışı bırakmayı öğrenir.
+  const kokAtamasi = /rootViewController\s*=\s*([A-Za-z0-9_]+)/g;
+  const kokler = [...icerik.matchAll(kokAtamasi)].map((m) => m[1]);
+
+  if (!/rootView:\s*DVBRootView\(\)/.test(icerik)) {
+    die('Sahne yaşam döngüsü açık ama SceneDelegate DVBRootView kurmuyor — '
+      + 'uygulama açılışta WEB SİTESİNİ gösterir (DVB-000124). Derleme durduruldu.');
+  }
+  if (kokler.includes('CAPBridgeViewController')) {
+    die('SceneDelegate kökü CAPBridgeViewController olarak ATANIYOR (Capacitor şablonu) — '
+      + 'native katman ekrana gelmez (DVB-000124). Derleme durduruldu.');
+  }
+  say('Sahne kökü doğrulandı: SceneDelegate → DVBRootView (CAPBridgeViewController yok).');
+} else {
+  say('Sahne manifesti yok — kök AppDelegate üzerinden kuruluyor (eski şablon).');
 }
 
 /* ── 4) project.pbxproj ────────────────────────────────────────────────────── */
