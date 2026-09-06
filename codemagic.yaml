@@ -70,6 +70,17 @@ workflows:
         script: |
           gem list -i xcodeproj >/dev/null 2>&1 || gem install xcodeproj --no-document
           ruby scripts/add-widget-target.rb
+      - name: İkon zinciri doğrulama (DVB-000122 — 1.0 (13) mağazaya ikonsuz gitti)
+        # ⚠ YERİ ÖNEMLİ: pbxproj'a dokunan SON adımdan (widget) SONRA koşar. Widget
+        # betiği pbxproj'u xcodeproj gem'iyle baştan yazıyor; ondan önce ölçmek
+        # gerçekte derlenen projeyi değil, ara bir hâli ölçmek olurdu.
+        #
+        # 1.0 (13) hem "Included Assets → App Icon" hem uygulama kartında Apple'ın
+        # yer tutucusunu gösterdi: Apple derlemeden ikon çıkaramamıştı. Zincirin beş
+        # halkası (kaynak PNG · Contents.json yuvası · katalogdaki dosya · Resources
+        # faz üyeliği · ASSETCATALOG ayarı) ayrı ayrı ölçülür, biri kopuksa DURUR.
+        # Bu adım BİLEREK sert: ikonsuz derleme yüklemek boşa tur harcamaktır.
+        script: node scripts/verify-ios-icon.mjs
       - name: CocoaPods + yapı teşhisi (.xcworkspace pod install ile üretilir)
         script: |
           echo "=== ios/ (2 seviye) ==="; find ios -maxdepth 2 2>/dev/null || echo "ios/ YOK"
@@ -181,6 +192,10 @@ workflows:
         script: |
           gem list -i xcodeproj >/dev/null 2>&1 || gem install xcodeproj --no-document
           ruby scripts/add-widget-target.rb
+      - name: İkon zinciri doğrulama (DVB-000122)
+        # Ekran görüntüsü iş akışında da koşar: yakalanan görüntülerde ikon yer
+        # tutucu çıkarsa mağaza sayfası da yanlış görünürdü.
+        script: node scripts/verify-ios-icon.mjs
       - name: CocoaPods (varsa)
         # Capacitor 8 bağımlılıkları Swift Package Manager ile çözüyor; Podfile HİÇ
         # üretilmiyor. İlk denemede burada sert hata verip build'i düşürdüm — release
