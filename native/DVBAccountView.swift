@@ -68,6 +68,22 @@ struct DVBAccountView: View {
                 }
             }
 
+            // DVB-000157 — SORUN BİLDİR. Kullanıcılar "uygulamada bildirecek yer yok" dedi;
+            // talepler mağaza yorumundan ve WhatsApp'tan geliyordu ve hiçbiri kayda girmiyordu.
+            //
+            // ⚠ KENDİ BÖLÜMÜNDE duruyor, "Hesap"ın içine gömülmedi: aranan şey görünürlük.
+            // Profil ayarlarının arasına koysaydık teknik olarak var ama pratikte yok olurdu —
+            // bugüne kadarki durum tam olarak buydu (ekran vardı, panelin içindeydi).
+            Section("Yardım") {
+                Button {
+                    webSheet = .init(url: DVBConfig.webBase.appendingPathComponent("hesabim/sorun-bildir"))
+                } label: {
+                    Label("Sorun bildir", systemImage: "exclamationmark.bubble")
+                }
+            } footer: {
+                Text("Çalışmayan bir şey ya da öneriniz varsa yazın. Her bildirim takip numarası alır ve durumunu aynı sayfadan izleyebilirsiniz.")
+            }
+
             Section("Hesap") {
                 Button {
                     webSheet = .init(url: DVBConfig.webBase.appendingPathComponent("hesabim/profil"))
