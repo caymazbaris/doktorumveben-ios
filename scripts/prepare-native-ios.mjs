@@ -177,12 +177,37 @@ for (const [key, val] of Object.entries(usageKeys)) {
     addedUsage.push(key);
   }
 }
+// ── DİL BEYANI — App Store ürün sayfasındaki "Diller" satırı ────────────────
+// Capacitor şablonu CFBundleDevelopmentRegion'ı `en` yazar ve CFBundleLocalizations
+// hiç koymaz. Sonuç: uygulamanın TAMAMI Türkçe olduğu hâlde App Store sayfasında
+// "Diller: English" görünüyordu (10 Eyl 2026'da canlı mağaza sayfasında ölçüldü).
+//
+// ⚠ Bu iki anahtar BURADA yazılmak zorunda: `ios/` sürüm kontrolünde değil, her CI
+// derlemesinde `cap add` ile şablondan yeniden üretiliyor. Yerelde Info.plist'i elle
+// düzeltmek hiçbir işe yaramaz — bir sonraki derlemede geri `en` olur.
+//
+// CFBundleLocalizations, kendi yerelleştirmesini kendisi yapan (bizim gibi web içerikli)
+// uygulamalar için Apple'ın öngördüğü anahtardır; .lproj klasörü gerektirmez.
+const bolgeDeseni = /<key>CFBundleDevelopmentRegion<\/key>\s*<string>[^<]*<\/string>/;
+if (bolgeDeseni.test(plist)) {
+  plist = plist.replace(bolgeDeseni, '<key>CFBundleDevelopmentRegion</key>\n\t<string>tr</string>');
+} else {
+  plist = plist.replace(/<dict>/, '<dict>\n\t<key>CFBundleDevelopmentRegion</key>\n\t<string>tr</string>');
+}
+if (!plist.includes('<key>CFBundleLocalizations</key>')) {
+  plist = plist.replace(
+    /<dict>/,
+    '<dict>\n\t<key>CFBundleLocalizations</key>\n\t<array>\n\t\t<string>tr</string>\n\t</array>',
+  );
+}
+
 // ITSAppUsesNonExemptEncryption = NO → Export Compliance sorusunu otomatik geçer.
 if (!plist.includes('<key>ITSAppUsesNonExemptEncryption</key>')) {
   plist = plist.replace(/<dict>/, '<dict>\n\t<key>ITSAppUsesNonExemptEncryption</key>\n\t<false/>');
 }
 write(plistPath, plist);
 say(`Info.plist izin/uyum anahtarları yazıldı${addedUsage.length ? ' (' + addedUsage.join(', ') + ')' : ' (zaten vardı)'}.`);
+say(`Dil beyanı: CFBundleDevelopmentRegion=tr + CFBundleLocalizations=[tr] (App Store "Diller" satırı Türkçe okusun).`);
 
 // ── 2) App.entitlements (push) ──────────────────────────────────────────────
 // KRİTİK: aps-environment SADECE Firebase gerçekten yapılandırıldığında (firebase/

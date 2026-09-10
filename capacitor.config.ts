@@ -8,7 +8,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
  */
 const config: CapacitorConfig = {
   appId: 'com.doktorumveben.app',
-  appName: 'Doktorumveben',
+  appName: 'Doktorum Ve Ben',
   webDir: 'www',
   server: {
     url: 'https://doktorumveben.com/?source=ios',
