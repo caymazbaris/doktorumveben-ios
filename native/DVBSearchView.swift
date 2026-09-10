@@ -21,29 +21,56 @@ struct DVBSearchView: View {
 
     var body: some View {
         NavigationView {
-            Group {
+            // ═══════════════════════════════════════════════════════════════════════
+            // DVB-000158 — KAPSAYICI HER DURUMDA `List`. Durum ekranları listenin İÇİNDE.
+            //
+            // Önce böyle değildi: dışta bir `Group` vardı ve içi duruma göre DEĞİŞİYORDU —
+            // yükleniyorken `ProgressView` (kaydırılamaz), liste gelince `List`
+            // (kaydırılabilir). Büyük başlık ve `.searchable` iOS'ta bir KAYDIRMA
+            // GÖRÜNÜMÜNE tutunur; içerik kaydırılamaz bir görünümken tutunacak yer yoktur
+            // ve sonradan `List` gelince bağ yeniden kurulmuyor. Sonuç: "Hekim ara" başlığı
+            // liste gelir gelmez KAYBOLUYOR, yerinde boş bir alan kalıyordu (kullanıcı ekran
+            // kaydı gönderdi, sekme değiştirip dönünce de gelmiyordu).
+            //
+            // Kapsayıcıyı sabitlemek kök nedeni ortadan kaldırır: kaydırma görünümünün
+            // kimliği hiç değişmez.
+            //
+            // ⚠ Başlığı `.inline` yapmak da semptomu kapatırdı ama diğer sekmeler
+            // (Randevularım, Bildirimler) büyük başlık kullanıyor — tutarsız bir ekran
+            // bırakır ve asıl nedeni gizlerdi.
+            //
+            // Not: `DVBAppointmentsView` aynı `safeAreaInset + navigationTitle` desenini
+            // kullanıyor ama orada `.searchable` YOK; başlığın orada kaybolmamasının sebebi
+            // bu. Oraya arama eklenirse aynı tuzak orada da açılır.
+            // ═══════════════════════════════════════════════════════════════════════
+            List {
                 if loading && doctors.isEmpty {
                     ProgressView("Hekimler getiriliyor…")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .frame(maxWidth: .infinity, minHeight: 220)
+                        .listRowSeparator(.hidden)
                 } else if let error, doctors.isEmpty {
                     DVBStateView(icon: "wifi.exclamationmark", title: "Liste alınamadı", message: error) {
                         reload()
                     }
+                    .frame(minHeight: 220)
+                    .listRowSeparator(.hidden)
                 } else if doctors.isEmpty {
                     DVBStateView(
                         icon: "magnifyingglass",
                         title: "Sonuç yok",
                         message: "Farklı bir isim ya da branş deneyin."
                     )
+                    .frame(minHeight: 220)
+                    .listRowSeparator(.hidden)
                 } else {
-                    List(doctors) { doctor in
+                    ForEach(doctors) { doctor in
                         NavigationLink(destination: DVBDoctorDetailView(doctor: doctor)) {
                             DVBDoctorRow(doctor: doctor)
                         }
                     }
-                    .listStyle(.plain)
                 }
             }
+            .listStyle(.plain)
             .safeAreaInset(edge: .top) { specialtyChips }
             .navigationTitle("Hekim ara")
             .searchable(text: $query, prompt: "İsim ya da branş")
