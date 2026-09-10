@@ -24,6 +24,11 @@ workflows:
       # bir sey kirilirsa "bizim kod mu, Xcode mu" ayirt edilemez.
       xcode: 26.4.1
       cocoapods: default
+      vars:
+        # App Store Connect'te AÇIK olan sürüm numarası. Orada yeni sürüm
+        # açtığında BURAYI da güncelle — ikisi tutmazsa yüklenen derleme
+        # o sürüme takılmaz ve TestFlight'ta öksüz kalır.
+        MARKETING_VERSION: "1.1"
     scripts:
       - name: Bağımlılıkları kur
         # --include=dev ŞART: @capacitor/cli ve @capacitor/assets devDependencies'te.
@@ -120,6 +125,23 @@ workflows:
             --create
           keychain add-certificates
           xcode-project use-profiles
+      - name: Sürüm numarasını yaz (App Store Connect'teki sürümle AYNI olmalı)
+        # `ios/` her derlemede şablondan üretiliyor ve Capacitor MARKETING_VERSION'ı
+        # 1.0 bırakıyor. App Store Connect'te 1.1 açıldı; derleme 1.0 olarak yüklenirse
+        # o sürüme HİÇ takılamaz ve "yükledim ama sürümde görünmüyor" diye saatler yanar.
+        #
+        # Tek doğruluk kaynağı burasıdır: ASC'de yeni sürüm açıldığında bu satır da
+        # güncellenir. agvtool bulunamazsa ya da yazamazsa derleme DURUR — yanlış sürüm
+        # numarasıyla yüklenen bir IPA sessizce yanlış yere gider.
+        script: |
+          cd ios/App
+          agvtool new-marketing-version "$MARKETING_VERSION"
+          YAZILAN=$(agvtool what-marketing-version -terse1 | head -1)
+          if [ "$YAZILAN" != "$MARKETING_VERSION" ]; then
+            echo "HATA: sürüm yazılamadı (beklenen $MARKETING_VERSION, okunan '$YAZILAN')."
+            exit 1
+          fi
+          echo "Sürüm: $MARKETING_VERSION"
       - name: Build numarasını artır
         script: |
           cd ios/App
