@@ -74,12 +74,19 @@ struct DVBAccountView: View {
             // ⚠ KENDİ BÖLÜMÜNDE duruyor, "Hesap"ın içine gömülmedi: aranan şey görünürlük.
             // Profil ayarlarının arasına koysaydık teknik olarak var ama pratikte yok olurdu —
             // bugüne kadarki durum tam olarak buydu (ekran vardı, panelin içindeydi).
-            Section("Yardım") {
+            // ⚠ `Section("Başlık") { } footer: { }` DİYE BİR KURUCU YOK — Codemagik derlemesi
+            // tam burada düştü (build 18): "cannot convert value of type 'String' to expected
+            // argument type '() -> Content'". String başlık ile footer birlikte kullanılamıyor;
+            // ikisi birden isteniyorsa header ve footer KAPANIŞ olarak verilir.
+            // Dosyanın altındaki biyometri bölümü de aynı desende (başlıksız + footer).
+            Section {
                 Button {
                     webSheet = .init(url: DVBConfig.webBase.appendingPathComponent("hesabim/sorun-bildir"))
                 } label: {
                     Label("Sorun bildir", systemImage: "exclamationmark.bubble")
                 }
+            } header: {
+                Text("Yardım")
             } footer: {
                 Text("Çalışmayan bir şey ya da öneriniz varsa yazın. Her bildirim takip numarası alır ve durumunu aynı sayfadan izleyebilirsiniz.")
             }
