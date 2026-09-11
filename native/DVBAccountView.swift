@@ -98,7 +98,9 @@ struct DVBAccountView: View {
                     Label("Profil bilgilerim", systemImage: "person.text.rectangle")
                 }
                 Button {
-                    webSheet = .init(url: DVBConfig.webBase.appendingPathComponent("gizlilik"))
+                    // DVB-000168 — sitede herkese açık /gizlilik YOK (o adres hekim panelinin içinde);
+                    // hasta 404 görüyordu. Gerçek sayfa /sozlesmeler/gizlilik.
+                    webSheet = .init(url: DVBConfig.webBase.appendingPathComponent("sozlesmeler/gizlilik"))
                 } label: {
                     Label("Gizlilik ve KVKK", systemImage: "lock.shield")
                 }
