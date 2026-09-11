@@ -14,6 +14,9 @@ struct DVBRootView: View {
 
     @Environment(\.scenePhase) private var scenePhase
 
+    /// DVB-000109 — dokunulan bildirimin açtığı adres (web sayfası olarak).
+    @State private var pushAdresi: DVBIdentifiableURL?
+
     var body: some View {
         // Tur 241 — CI'da mağaza görüntüsü alınırken kök devralınır (bkz. DVBScreenshot.swift).
         // Argüman yalnız Codemagic'ten gelir; normal kullanımda bu dal HİÇ çalışmaz.
@@ -43,6 +46,11 @@ struct DVBRootView: View {
         .environmentObject(session)
         .environmentObject(lock)
         .task { await session.restore() }
+        // DVB-000109 — bildirime dokunulunca payload'daki adres açılır.
+        .onReceive(NotificationCenter.default.publisher(for: DVBPush.acilacakURL)) { bildirim in
+            if let url = bildirim.object as? URL { pushAdresi = DVBIdentifiableURL(url: url) }
+        }
+        .sheet(item: $pushAdresi) { DVBWebSheet(url: $0.url, title: "Doktorum Ve Ben") }
         // DVB-000111 — kilit perdesi EN DIŞTA: sekme çubuğu dahil her şeyi örtmeli.
         .dvbKilit(lock)
         // ⚠ TEK PARAMETRELİ onChange BİLEREK: iki parametreli biçim (oldValue, newValue)

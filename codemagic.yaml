@@ -29,6 +29,9 @@ workflows:
         # açtığında BURAYI da güncelle — ikisi tutmazsa yüklenen derleme
         # o sürüme takılmaz ve TestFlight'ta öksüz kalır.
         MARKETING_VERSION: "1.2"
+        # DVB-000109 — doğrudan APNs: prepare-native-ios.mjs aps-environment
+        # entitlement'ını yazsın. Ön koşul: App ID'de Push Notifications AÇIK.
+        PUSH_APNS: "1"
     scripts:
       - name: Bağımlılıkları kur
         # --include=dev ŞART: @capacitor/cli ve @capacitor/assets devDependencies'te.

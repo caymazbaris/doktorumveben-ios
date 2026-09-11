@@ -91,6 +91,15 @@ actor DVBAPI {
         return try await send(req, token: token)
     }
 
+    /// DVB-000109 — gövdeli DELETE (cihaz jetonunu bırakma: sunucu jetonu gövdeden okur).
+    func delete<T: Decodable>(_ path: String, body: [String: Any] = [:], token: String? = nil) async throws -> T {
+        var req = URLRequest(url: DVBConfig.apiBase.appendingPathComponent(path))
+        req.httpMethod = "DELETE"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        return try await send(req, token: token)
+    }
+
     private func send<T: Decodable>(_ request: URLRequest, token: String?) async throws -> T {
         var req = request
         req.setValue("application/json", forHTTPHeaderField: "Accept")

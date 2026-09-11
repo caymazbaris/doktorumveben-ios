@@ -1,6 +1,7 @@
 import UIKit
 import SwiftUI
 import Capacitor
+import UserNotifications
 
 /// Tur 235 — Uygulamanın girişi. Capacitor şablonundaki AppDelegate'in YERİNE geçer
 /// (`scripts/prepare-native-ios.mjs` her derlemede kopyalar).
@@ -34,7 +35,27 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             window.makeKeyAndVisible()
             self.window = window
         }
+
+        // DVB-000109 — bildirim delegesi açılışta bağlanır (ön planda gösterim + dokunuş).
+        // Kayıt (izin + registerForRemoteNotifications) burada DEĞİL, girişten sonra (DVBSession).
+        UNUserNotificationCenter.current().delegate = DVBPushDelegesi.shared
         return true
+    }
+
+    // DVB-000109 — APNs cihaz jetonu (doğrudan APNs; Firebase yok).
+    func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        DVBPush.jetonGeldi(deviceToken)
+    }
+
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        // Simülatörde ve entitlement'sız derlemede beklenen durum; ürün akışı etkilenmez.
+        NSLog("[DVB push] APNs kaydı başarısız: %@", error.localizedDescription)
     }
 
     func applicationWillResignActive(_ application: UIApplication) {}

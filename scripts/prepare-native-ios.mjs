@@ -216,7 +216,9 @@ say(`Dil beyanı: CFBundleDevelopmentRegion=tr + CFBundleLocalizations=[tr] (App
 // Notifications feature" ile REDDEDER. Push kurulunca (o .plist eklenince) hem bu
 // entitlement hem de Apple Developer'da App ID'ye Push capability gerekir.
 const entPath = path.join(appDir, 'App.entitlements');
-const pushReady = fs.existsSync(path.join(root, 'firebase/GoogleService-Info.plist'));
+// DVB-000109 — Firebase'siz DOĞRUDAN APNs: Codemagic PUSH_APNS=1 verince de yazılır.
+// ÖN KOŞUL aynı: Apple Developer'da App ID'de Push Notifications AÇIK (11 Eyl 2026: açık, ölçüldü).
+const pushReady = fs.existsSync(path.join(root, 'firebase/GoogleService-Info.plist')) || process.env.PUSH_APNS === '1';
 
 // Tur 241 — KRİTİK (App Store 4.8): Apple ile giriş entitlement'ı. Bu anahtar
 // olmadan ASAuthorization çalışma anında hata verir; düğme görünür ama giriş

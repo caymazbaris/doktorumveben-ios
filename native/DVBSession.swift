@@ -26,6 +26,7 @@ final class DVBSession: ObservableObject {
         do {
             let me: DVBMe = try await DVBAPI.shared.get("auth/me", token: token)
             user = me.user
+            DVBPush.kaydol()   // DVB-000109 — her açılışta yeniden yaz (jeton/sahip değişmiş olabilir)
             await ajandayiTazele()
         } catch DVBError.unauthorized {
             signOut()
@@ -75,6 +76,7 @@ final class DVBSession: ObservableObject {
         DVBKeychain.save(token)
         self.token = token
         self.user = res.user
+        DVBPush.kaydol()   // DVB-000109 — bildirim izni + APNs kaydı YALNIZ giriş sonrası
     }
 
     /// Tur 241 — App Store 4.8: uygulama içi Apple ile giriş.
@@ -101,13 +103,17 @@ final class DVBSession: ObservableObject {
         DVBKeychain.save(token)
         self.token = token
         self.user = res.user
+        DVBPush.kaydol()   // DVB-000109
     }
 
     func signOut() {
         if let token {
             // Sunucudaki jetonu da düşür; başarısız olsa bile yerelde siliyoruz.
             // Tip AÇIKÇA yazılır: `post` genelidir, `try?` ile `as` birlikte çıkarım yapamaz.
+            // DVB-000109 — SIRA ÖNEMLİ: önce cihaz kaydı bırakılır, sonra oturum düşürülür;
+            // tersi olsaydı DELETE 401 alır ve bildirimler çıkış yapan kişiye gitmeye devam ederdi.
             Task {
+                await DVBPush.jetonuBirak(oturum: token)
                 let _: DVBMessage? = try? await DVBAPI.shared.post("auth/logout", token: token)
             }
         }
