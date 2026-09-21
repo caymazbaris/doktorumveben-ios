@@ -129,6 +129,12 @@ struct DVBAppointmentDetailView: View {
             Section {
                 labelled("Hekim", current.doctor)
                 labelled("Branş", current.doctorSpecialty)
+                // DVB-000246 — HASTA ADI. Talep (Arslan Aygün, 21 Eyl 2026): "app storedaki ürünle ilgili
+                // hasta adı yazmıyor burda yazsın". Sunucu bu alanı ZATEN gönderiyordu (`patient`), ekran
+                // basmıyordu; hekim kendi randevusunda karşısındaki hastanın kim olduğunu göremiyordu.
+                // Hasta tarafında da işe yarar: kişi yakını adına randevu aldığında randevunun kime ait
+                // olduğunu burada görür. Alan boşsa `labelled` hiçbir şey basmaz (boş satır kalmaz).
+                labelled("Hasta", current.patient)
                 labelled("Hizmet", current.type)
                 labelled("Tarih", current.startsAt?.dvbLong)
                 if let dk = current.durationMinutes { labelled("Süre", "\(dk) dakika") }
