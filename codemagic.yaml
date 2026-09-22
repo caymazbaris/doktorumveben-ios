@@ -28,7 +28,12 @@ workflows:
         # App Store Connect'te AÇIK olan sürüm numarası. Orada yeni sürüm
         # açtığında BURAYI da güncelle — ikisi tutmazsa yüklenen derleme
         # o sürüme takılmaz ve TestFlight'ta öksüz kalır.
-        MARKETING_VERSION: "1.2"
+        #
+        # 22 Eyl 2026 — 1.2 → 1.3. Derleme #23 "Publishing" adımında Apple tarafından reddedildi:
+        # "CFBundleShortVersionString [1.2] … must contain a higher version than that of the previously
+        # approved version [1.2]". 1.2 mağazada YAYINDA olduğu için aynı sürüm numarasıyla yükleme kabul
+        # edilmiyor. Kullanıcı kararı: 1.3.
+        MARKETING_VERSION: "1.3"
         # DVB-000109 — doğrudan APNs: prepare-native-ios.mjs aps-environment
         # entitlement'ını yazsın. Ön koşul: App ID'de Push Notifications AÇIK.
         PUSH_APNS: "1"
