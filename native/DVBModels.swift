@@ -132,9 +132,11 @@ struct DVBNotification: Decodable, Identifiable {
     let url: String?
     let isRead: Bool?
     let createdAt: Date?
+    /// DVB-000272 — yalnız hekim bildirim ucunda gelir: uygulamadaki yerli hedef (yoksa web sayfası).
+    let target: DVBHekimHedef?
 
     enum CodingKeys: String, CodingKey {
-        case id, type, title, body, url
+        case id, type, title, body, url, target
         case isRead = "is_read"
         case createdAt = "created_at"
     }

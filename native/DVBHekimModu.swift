@@ -27,7 +27,14 @@ struct DVBHekimBilgisi: Decodable {
         let patients: Bool?
         let questions: Bool?
         let payments: Bool?
+        let messages: Bool?
     }
+
+    /// DVB-000272 — rozetler: görünen sohbetlerde okunmamış hasta mesajı / zil (mesaj bildirimleri hariç).
+    let unreadMessages: Int?
+    let unreadNotifications: Int?
+
+    var mesajlarAcik: Bool { features?.messages ?? false }
 
     var hastalarAcik: Bool { features?.patients ?? false }
     var sorularAcik: Bool { features?.questions ?? false }
@@ -49,6 +56,8 @@ struct DVBHekimBilgisi: Decodable {
         case pendingCancels = "pending_cancels"
         case readOnly = "read_only"
         case features
+        case unreadMessages = "unread_messages"
+        case unreadNotifications = "unread_notifications"
     }
 }
 

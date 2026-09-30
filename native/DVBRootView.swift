@@ -17,6 +17,9 @@ struct DVBRootView: View {
     /// DVB-000109 — dokunulan bildirimin açtığı adres (web sayfası olarak).
     @State private var pushAdresi: DVBIdentifiableURL?
 
+    /// DVB-000272 — hekim hesabında push dokunuşu yerli ekrana gidebilir.
+    @State private var pushHedefi: DVBHedefSunumu?
+
     var body: some View {
         // Tur 241 — CI'da mağaza görüntüsü alınırken kök devralınır (bkz. DVBScreenshot.swift).
         // Argüman yalnız Codemagic'ten gelir; normal kullanımda bu dal HİÇ çalışmaz.
@@ -41,9 +44,11 @@ struct DVBRootView: View {
                         .tabItem { Label("Hastalar", systemImage: "person.2") }
                 }
 
+                // DVB-000272 — "Talepler" → "Gelen Kutusu" (Mesajlar · İptaller · Sorular); 5 sekme sınırı yüzünden Mesajlar
+                // ayrı sekme değil. Rozet: okunmamış hasta mesajı + bekleyen iptal talebi.
                 DVBHekimTaleplerView()
-                    .tabItem { Label("Talepler", systemImage: "tray") }
-                    .badge(hekim.pendingCancels ?? 0)
+                    .tabItem { Label("Gelen Kutusu", systemImage: "tray") }
+                    .badge((hekim.unreadMessages ?? 0) + (hekim.pendingCancels ?? 0))
 
                 // DVB-000271 — web'deki Ödeme Linki / Tahsilatlarım ile aynı kapı (`features.payments`).
                 if hekim.odemelerAcik {
@@ -52,7 +57,7 @@ struct DVBRootView: View {
                 }
             }
 
-            // DVB-000271 — hekim modunda 5 sekme sınırı (Ajanda, Hastalar, Talepler, Tahsilat, Hesabım): 6. sekme iOS'ta
+            // DVB-000271 — hekim modunda 5 sekme sınırı (Ajanda, Hastalar, Gelen Kutusu, Tahsilat, Hesabım): 6. sekme iOS'ta
             // "Diğer" menüsüne düşer ve Hesabım gizlenir. Hekim arama sekmesi yalnız sekme sayısı 6 olacaksa kalkar.
             if !(session.hekim?.odemelerAcik ?? false) || !(session.hekim?.hastalarAcik ?? false) {
                 DVBSearchView()
@@ -76,11 +81,13 @@ struct DVBRootView: View {
         .task { await session.restore() }
         // DVB-000109 — bildirime dokunulunca payload'daki adres açılır.
         .onReceive(NotificationCenter.default.publisher(for: DVBPush.acilacakURL)) { bildirim in
-            if let url = bildirim.object as? URL { pushAdresi = DVBIdentifiableURL(url: url) }
+            if let url = bildirim.object as? URL { Task { await pushAc(url) } }
         }
         .sheet(item: $pushAdresi) { DVBWebSheet(url: $0.url, title: "Doktorum Ve Ben") }
         // DVB-000111 — kilit perdesi EN DIŞTA: sekme çubuğu dahil her şeyi örtmeli.
         .dvbKilit(lock)
+        // İkinci sayfa ayrı görünüm katmanında (aynı görünüme iki `sheet` eski iOS'ta birini susturuyordu).
+        .sheet(item: $pushHedefi) { DVBHekimHedefSayfasi(hedef: $0.hedef).environmentObject(session).environmentObject(lock) }
         // ⚠ TEK PARAMETRELİ onChange BİLEREK: iki parametreli biçim (oldValue, newValue)
         // iOS 17+ İSTER. Projenin deployment target'ı Capacitor şablonundan geliyor ve
         // depoda sabitlenmiş değil; daha düşükse iki parametreli biçim DERLEME HATASI verir.
@@ -91,6 +98,24 @@ struct DVBRootView: View {
             // .inactive de dahil: görev değiştirici önizlemesi ekranın fotoğrafını çeker.
             if yeni != .active { lock.arkaPlanaGitti() }
         }
+    }
+}
+
+extension DVBRootView {
+    /// DVB-000272 — push adresini aç. Hekim hesabında hedef SUNUCUNUN eşlemesinden (bildirim listesindeki aynı adres)
+    /// bulunur — istemcide adres→ekran kuralının ikinci kopyası yok. Bulunamazsa eskisi gibi web sayfası.
+    @MainActor
+    func pushAc(_ url: URL) async {
+        if session.hekim != nil, let token = session.token,
+           let sayfa: DVBNotificationPage = try? await DVBAPI.shared.get("my/doctor/notifications", query: ["limit": "30"], token: token),
+           let hedef = sayfa.data.first(where: { n in
+               guard let raw = n.url, let adres = URL(string: raw, relativeTo: DVBConfig.webBase) else { return false }
+               return adres.path == url.path
+           })?.target {
+            pushHedefi = DVBHedefSunumu(hedef: hedef)
+            return
+        }
+        pushAdresi = DVBIdentifiableURL(url: url)
     }
 }
 

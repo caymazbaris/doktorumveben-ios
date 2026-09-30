@@ -36,7 +36,9 @@ extension DVBSession {
     /// rozeti bayat kalırdı. Hata/iptal sessiz: rozet bir süre eski sayıyı gösterir, ekran hata vermez.
     func okunmamisiYenile() async {
         guard let token else { unreadCount = 0; return }
-        if let sayfa: DVBNotificationPage = try? await DVBAPI.shared.get("my/notifications", token: token) {
+        // DVB-000272 — hekimde zil = panel zili kümesi (mesaj bildirimleri Gelen Kutusu rozetinde).
+        let yol = hekim != nil ? "my/doctor/notifications" : "my/notifications"
+        if let sayfa: DVBNotificationPage = try? await DVBAPI.shared.get(yol, query: ["limit": "1"], token: token) {
             unreadCount = sayfa.meta?.unread ?? 0
         }
     }

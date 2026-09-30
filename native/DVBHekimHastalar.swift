@@ -460,12 +460,20 @@ private struct DVBHekimNotFormu: View {
 
 // MARK: - Talepler (iptal talepleri + Gelen Sorular)
 
+/// DVB-000272 — "Talepler" sekmesi "Gelen Kutusu" oldu: iOS alt çubuğu 5 sekmeden fazlasını "Diğer" menüsüne saklıyor
+/// (Hesabım kayboluyordu); Mesajlar ayrı sekme olsaydı 6 olurdu. Hastadan gelen her şey tek yerde: Mesajlar · İptaller ·
+/// Sorular. Bölümler sunucunun `features` bilgisine göre görünür.
+enum DVBGelenBolum: Hashable { case mesajlar, iptal, sorular }
+
 struct DVBHekimTaleplerView: View {
+    /// Bildirimden açılınca gösterilecek bölüm (yoksa ilk açık bölüm).
+    var baslangic: DVBGelenBolum? = nil
+
     @EnvironmentObject private var session: DVBSession
 
-    private enum Bolum: Hashable { case iptal, sorular }
-
-    @State private var bolum: Bolum = .iptal
+    @State private var secilen: DVBGelenBolum?
+    @State private var sohbetler: [DVBHekimSohbetOzet] = []
+    @State private var whatsappNotu: String?
     @State private var iptaller: [DVBHekimRandevu] = []
     @State private var bekleyenSorular: [DVBHekimSoru] = []
     @State private var yanitladiklarim: [DVBHekimSoru] = []
@@ -474,14 +482,29 @@ struct DVBHekimTaleplerView: View {
     @State private var yanitlanan: DVBHekimSoru?
 
     private var sorularAcik: Bool { session.hekim?.sorularAcik ?? false }
+    private var mesajlarAcik: Bool { session.hekim?.mesajlarAcik ?? false }
+
+    private var bolumler: [DVBGelenBolum] {
+        (mesajlarAcik ? [.mesajlar] : []) + [.iptal] + (sorularAcik ? [.sorular] : [])
+    }
+
+    private var bolum: DVBGelenBolum {
+        let aday = secilen ?? baslangic ?? bolumler.first ?? .iptal
+        return bolumler.contains(aday) ? aday : (bolumler.first ?? .iptal)
+    }
 
     var body: some View {
         NavigationView {
             List {
-                if sorularAcik {
-                    Picker("Bölüm", selection: $bolum) {
-                        Text("İptal talepleri").tag(Bolum.iptal)
-                        Text("Gelen sorular").tag(Bolum.sorular)
+                if bolumler.count > 1 {
+                    Picker("Bölüm", selection: Binding(get: { bolum }, set: { secilen = $0 })) {
+                        ForEach(bolumler, id: \.self) { b in
+                            switch b {
+                            case .mesajlar: Text(okunmamisMesaj > 0 ? "Mesajlar (\(okunmamisMesaj))" : "Mesajlar").tag(b)
+                            case .iptal: Text("İptaller").tag(b)
+                            case .sorular: Text("Sorular").tag(b)
+                            }
+                        }
                     }
                     .pickerStyle(.segmented)
                     .listRowBackground(Color.clear)
@@ -489,24 +512,77 @@ struct DVBHekimTaleplerView: View {
                 }
 
                 if let hata {
-                    DVBStateView(icon: "wifi.exclamationmark", title: "Talepler alınamadı", message: hata) {
+                    DVBStateView(icon: "wifi.exclamationmark", title: "Gelen kutusu alınamadı", message: hata) {
                         Task { await yukle() }
                     }
-                } else if bolum == .iptal || !sorularAcik {
-                    iptalBolumu
                 } else {
-                    soruBolumu
+                    switch bolum {
+                    case .mesajlar: mesajBolumu
+                    case .iptal: iptalBolumu
+                    case .sorular: soruBolumu
+                    }
                 }
             }
             .refreshable { await yukle() }
-            .navigationTitle("Talepler")
+            .navigationTitle("Gelen Kutusu")
+            .toolbar { ToolbarItem(placement: .navigationBarTrailing) { DVBZilDugmesi() } }
             .task(id: bolum) { await yukle() }
+            // Sohbet açılıp okununca rozet değişir → liste de tazelensin (geri dönüşte okunmamış sayısı bayat kalmasın).
+            .onChange(of: session.hekim?.unreadMessages) { _ in
+                if bolum == .mesajlar { Task { await yukle() } }
+            }
             .sheet(item: $yanitlanan) { soru in
                 DVBHekimYanitFormu(soru: soru) { Task { await yukle() } }
                     .environmentObject(session)
             }
         }
         .navigationViewStyle(.stack)
+    }
+
+    private var okunmamisMesaj: Int { session.hekim?.unreadMessages ?? 0 }
+
+    @ViewBuilder private var mesajBolumu: some View {
+        Section {
+            if yukleniyor && sohbetler.isEmpty {
+                ProgressView().frame(maxWidth: .infinity)
+            } else if sohbetler.isEmpty {
+                Text("Henüz hasta mesajı yok.").foregroundColor(.secondary)
+            } else {
+                ForEach(sohbetler) { s in
+                    NavigationLink(destination: DVBHekimSohbetView(sohbetId: s.id, ad: s.name ?? "Hasta")) {
+                        sohbetSatiri(s)
+                    }
+                }
+            }
+        } footer: {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Hastaların sitedeki ve uygulamadaki güvenli mesajları. Yanıtınız hastaya bildirim olarak gider.")
+                if let not = whatsappNotu { Text(not) }
+            }
+        }
+    }
+
+    private func sohbetSatiri(_ s: DVBHekimSohbetOzet) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Circle().fill(s.unread > 0 ? DVBTheme.brand : Color.clear).frame(width: 8, height: 8).padding(.top, 6)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack {
+                    Text(s.name ?? "Hasta").font(.subheadline.weight(s.unread > 0 ? .semibold : .regular))
+                    Spacer()
+                    if let t = s.lastMessageAt { Text(DVBSaat.gun(t, "d MMM HH:mm")).font(.caption).foregroundColor(.secondary) }
+                }
+                if let son = s.lastMessage {
+                    Text((s.lastFrom == "doctor" ? "Siz: " : "") + son)
+                        .font(.caption).foregroundColor(.secondary).lineLimit(2)
+                }
+            }
+            if s.unread > 0 {
+                Text("\(s.unread)").font(.caption2.weight(.bold)).foregroundColor(.white)
+                    .padding(.horizontal, 7).padding(.vertical, 2)
+                    .background(DVBTheme.brand).clipShape(Capsule())
+            }
+        }
+        .padding(.vertical, 2)
     }
 
     @ViewBuilder private var iptalBolumu: some View {
@@ -580,10 +656,15 @@ struct DVBHekimTaleplerView: View {
         yukleniyor = true
         defer { yukleniyor = false }
         do {
-            if bolum == .iptal || !sorularAcik {
+            switch bolum {
+            case .mesajlar:
+                let l: DVBHekimSohbetListesi = try await DVBAPI.shared.get("my/doctor/conversations", token: token)
+                sohbetler = l.data
+                whatsappNotu = l.whatsappNote
+            case .iptal:
                 let l: DVBHekimRandevuListesi = try await DVBAPI.shared.get("my/doctor/cancel-requests", token: token)
                 iptaller = l.data
-            } else {
+            case .sorular:
                 let s: DVBHekimSorular = try await DVBAPI.shared.get("my/doctor/questions", token: token)
                 bekleyenSorular = s.pending
                 yanitladiklarim = s.answered
