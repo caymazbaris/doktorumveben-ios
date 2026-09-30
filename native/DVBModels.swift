@@ -190,16 +190,27 @@ struct DVBUser: Decodable {
 }
 
 /// `POST /auth/login` — 2FA açık hesaplarda jeton YERİNE `requires_otp` döner.
+/// DVB-000274/276 — ikinci adımda kod web ile aynı kanaldan gider (WhatsApp → e-posta); `two_factor_token` 10 dk geçerli
+/// "bekleyen giriş" anahtarıdır, kodla birlikte `POST /auth/otp/verify`a gönderilir.
 struct DVBLoginResponse: Decodable {
     let token: String?
     let user: DVBUser?
     let requiresOtp: Bool?
     let message: String?
+    let sent: Bool?
+    let channel: String?
+    let twoFactorToken: String?
 
     enum CodingKeys: String, CodingKey {
-        case token, user, message
+        case token, user, message, sent, channel
         case requiresOtp = "requires_otp"
+        case twoFactorToken = "two_factor_token"
     }
+}
+
+/// DVB-000276 — `POST /auth/otp/verify` (ikinci adım) yanıtı: yalnız jeton gerekir, kullanıcı `auth/me` ile alınır.
+struct DVBIkinciAdimCevabi: Decodable {
+    let token: String
 }
 
 struct DVBMe: Decodable {

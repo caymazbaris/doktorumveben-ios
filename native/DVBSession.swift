@@ -77,17 +77,21 @@ final class DVBSession: ObservableObject {
         }
     }
 
-    func signIn(email: String, password: String) async throws {
+    /// Şifreyle giriş. İki adım gereken hesapta (web ile aynı karar — DVB-000274) jeton YERİNE bekleyen ikinci adım
+    /// döner; ekran kodu sorar ve `ikinciAdimiDogrula` ile tamamlar (DVB-000276).
+    @discardableResult
+    func signIn(email: String, password: String) async throws -> DVBGirisSonucu {
         let res: DVBLoginResponse = try await DVBAPI.shared.post("auth/login", body: [
             "email": email,
             "password": password,
             "device_name": deviceName(),
         ])
 
-        // 2FA açık hesap: jeton yerine OTP isteniyor. Native OTP ekranı Faz 4'te;
-        // şimdilik dürüst hata verip web girişine yönlendiriyoruz.
         if res.requiresOtp == true {
-            throw DVBError.server(200, "Hesabınızda iki adımlı doğrulama açık. Şimdilik web üzerinden giriş yapın.")
+            guard res.sent != false, let anahtar = res.twoFactorToken, !anahtar.isEmpty else {
+                throw DVBError.server(200, res.message ?? "Doğrulama kodu gönderilemedi. Lütfen tekrar deneyin.")
+            }
+            return .ikinciAdim(DVBIkinciAdim(anahtar: anahtar, mesaj: res.message ?? "Doğrulama kodu gönderildi.", kanal: res.channel))
         }
         guard let token = res.token else {
             throw DVBError.server(200, res.message ?? "Giriş yapılamadı.")
@@ -99,6 +103,23 @@ final class DVBSession: ObservableObject {
         self.user = res.user
         DVBPush.kaydol()   // DVB-000109 — bildirim izni + APNs kaydı YALNIZ giriş sonrası
         await hekimiYukle()
+        return .tamam
+    }
+
+    /// DVB-000276 — ikinci adım: bekleyen giriş anahtarı + kod (6 haneli ya da kurtarma kodu). Kod web'in
+    /// doğrulayıcısından geçer; hatalı kod sunucuda erişim kaydına ve alarma düşer. Başarıda oturum kurulur ve kullanıcı
+    /// bilgisi `auth/me`den alınır (doğrulama yanıtı yalnız jeton taşır).
+    func ikinciAdimiDogrula(_ adim: DVBIkinciAdim, kod: String) async throws {
+        let res: DVBIkinciAdimCevabi = try await DVBAPI.shared.post("auth/otp/verify", body: [
+            "two_factor_token": adim.anahtar,
+            "code": kod,
+            "device_name": deviceName(),
+        ])
+
+        DVBWebOturum.temizle()   // DVB-000273 — aynı cihazda önceki kişinin web oturumu kalmasın
+        DVBKeychain.save(res.token)
+        self.token = res.token
+        await restore()          // auth/me + push kaydı + hekim modu + widget verisi
     }
 
     /// Tur 241 — App Store 4.8: uygulama içi Apple ile giriş.
@@ -157,4 +178,17 @@ final class DVBSession: ObservableObject {
         return "ios"
         #endif
     }
+}
+
+/// DVB-000276 — şifre doğru, ikinci adım bekleniyor: sunucunun "bekleyen giriş" anahtarı ve kullanıcıya gösterilecek
+/// "kod şuraya gönderildi" metni. Anahtar yalnız bellekte durur (10 dk geçerli); saklanmaz.
+struct DVBIkinciAdim: Equatable {
+    let anahtar: String
+    let mesaj: String
+    let kanal: String?
+}
+
+enum DVBGirisSonucu {
+    case tamam
+    case ikinciAdim(DVBIkinciAdim)
 }

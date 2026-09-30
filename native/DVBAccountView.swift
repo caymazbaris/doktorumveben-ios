@@ -14,6 +14,10 @@ struct DVBAccountView: View {
     @State private var password = ""
     @State private var busy = false
     @State private var error: String?
+    /// DVB-000276 — şifre doğru, ikinci adım kodu bekleniyor (iki adım gereken hesap).
+    @State private var ikinciAdim: DVBIkinciAdim?
+    @State private var kod = ""
+    @State private var kurtarmaKoduModu = false
     @State private var confirmDelete = false
     @State private var webSheet: DVBIdentifiableURL?
     /// DVB-000264 — bildirimler artık sekme değil; buradan da açılır.
@@ -166,7 +170,75 @@ struct DVBAccountView: View {
 
     // MARK: - Girişsiz
 
-    private var signedOut: some View {
+    @ViewBuilder private var signedOut: some View {
+        if let adim = ikinciAdim {
+            ikinciAdimFormu(adim)
+        } else {
+            sifreFormu
+        }
+    }
+
+    /// DVB-000276 — İKİNCİ ADIM: web'deki kod ekranının uygulama karşılığı. Kod WhatsApp'a (olmazsa e-postaya) gider;
+    /// 6 hane tamamlanınca kendiliğinden doğrulanır. Kurtarma kodu (XXXX-XXXX) aynı kutudan kabul edilir.
+    private func ikinciAdimFormu(_ adim: DVBIkinciAdim) -> some View {
+        Form {
+            Section {
+                Text(adim.mesaj).font(.subheadline)
+                TextField(kurtarmaKoduModu ? "Kurtarma kodu (XXXX-XXXX)" : "6 haneli kod", text: $kod)
+                    .textContentType(.oneTimeCode)
+                    .keyboardType(kurtarmaKoduModu ? .asciiCapable : .numberPad)
+                    // Tür AÇIK: yalın `.none` derleyicide Optional.none ile karışabilir.
+                    .autocapitalization(kurtarmaKoduModu ? UITextAutocapitalizationType.allCharacters : UITextAutocapitalizationType.none)
+                    .disableAutocorrection(true)
+                    .font(.title3.monospacedDigit())
+                    .onChange(of: kod) { yeni in
+                        guard !kurtarmaKoduModu else { return }
+                        let rakamlar = String(yeni.filter(\.isNumber).prefix(6))
+                        if rakamlar != yeni { kod = rakamlar; return }
+                        if rakamlar.count == 6, !busy { Task { await dogrula() } }
+                    }
+            } header: {
+                Text("İki adımlı doğrulama")
+            } footer: {
+                if let error {
+                    Text(error).foregroundColor(.red)
+                } else {
+                    Text("Hesabınızda iki adımlı doğrulama açık. Gelen kodu girin; kod birkaç dakika geçerlidir.")
+                }
+            }
+
+            Section {
+                Button {
+                    Task { await dogrula() }
+                } label: {
+                    HStack {
+                        if busy { ProgressView().padding(.trailing, 6) }
+                        Text("Doğrula")
+                    }
+                }
+                .disabled(busy || kod.trimmingCharacters(in: .whitespaces).count < (kurtarmaKoduModu ? 9 : 6))
+            }
+
+            Section {
+                Button("Kodu tekrar gönder") { Task { await signIn() } }
+                    .disabled(busy)
+                Button(kurtarmaKoduModu ? "Doğrulama kodu gir" : "Kurtarma kodu kullan") {
+                    kurtarmaKoduModu.toggle()
+                    kod = ""
+                    error = nil
+                }
+                Button("Vazgeç", role: .cancel) {
+                    ikinciAdim = nil
+                    kod = ""
+                    password = ""
+                    error = nil
+                    kurtarmaKoduModu = false
+                }
+            }
+        }
+    }
+
+    private var sifreFormu: some View {
         Form {
             Section {
                 TextField("E-posta", text: $email)
@@ -236,10 +308,35 @@ struct DVBAccountView: View {
         error = nil
         defer { busy = false }
         do {
-            try await session.signIn(email: email.trimmingCharacters(in: .whitespaces), password: password)
-            password = ""
+            switch try await session.signIn(email: email.trimmingCharacters(in: .whitespaces), password: password) {
+            case .tamam:
+                password = ""
+                ikinciAdim = nil
+            case .ikinciAdim(let adim):
+                // DVB-000276 — parola yalnız "kodu tekrar gönder" için ekranda kalır; vazgeçince ya da girişte silinir.
+                ikinciAdim = adim
+                kod = ""
+            }
         } catch {
             self.error = (error as? DVBError)?.errorDescription ?? "Giriş yapılamadı."
+        }
+    }
+
+    /// DVB-000276 — ikinci adım kodunu doğrula; başarıda oturum açılır ve ekran Hesabım'a döner.
+    private func dogrula() async {
+        guard let adim = ikinciAdim, !busy else { return }
+        busy = true
+        error = nil
+        defer { busy = false }
+        do {
+            try await session.ikinciAdimiDogrula(adim, kod: kod.trimmingCharacters(in: .whitespaces))
+            password = ""
+            kod = ""
+            ikinciAdim = nil
+            kurtarmaKoduModu = false
+        } catch {
+            self.error = (error as? DVBError)?.errorDescription ?? "Doğrulama yapılamadı."
+            kod = ""
         }
     }
 
