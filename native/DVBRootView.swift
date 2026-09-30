@@ -31,9 +31,19 @@ struct DVBRootView: View {
         TabView {
             // DVB-000267 — hekim hesabı: ilk sekme kendi ajandası. Hasta "Randevularım" hekimde anlamsız
             // (hekimin kendi hasta randevusu yoksa boş liste) — onun yerine Ajanda gelir.
-            if session.hekim != nil {
+            if let hekim = session.hekim {
                 DVBHekimAjandaView()
                     .tabItem { Label("Ajanda", systemImage: "calendar.badge.clock") }
+
+                // DVB-000270 — sekmeler sunucunun `features` bilgisine göre (muhasebe görünümünde hasta bölümü yok).
+                if hekim.hastalarAcik {
+                    DVBHekimHastalarView()
+                        .tabItem { Label("Hastalar", systemImage: "person.2") }
+                }
+
+                DVBHekimTaleplerView()
+                    .tabItem { Label("Talepler", systemImage: "tray") }
+                    .badge(hekim.pendingCancels ?? 0)
             }
 
             DVBSearchView()

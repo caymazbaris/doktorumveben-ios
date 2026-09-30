@@ -19,6 +19,17 @@ struct DVBHekimBilgisi: Decodable {
     let billingOnly: Bool?
     let todayCount: Int?
     let pendingCancels: Int?
+    /// DVB-000270 — muhasebe görünümü: randevular yalnız okunur, hasta bölümü kapalı.
+    let readOnly: Bool?
+    let features: Ozellikler?
+
+    struct Ozellikler: Decodable {
+        let patients: Bool?
+        let questions: Bool?
+    }
+
+    var hastalarAcik: Bool { features?.patients ?? false }
+    var sorularAcik: Bool { features?.questions ?? false }
 
     struct Hekim: Decodable {
         let id: Int
@@ -34,6 +45,8 @@ struct DVBHekimBilgisi: Decodable {
         case billingOnly = "billing_only"
         case todayCount = "today_count"
         case pendingCancels = "pending_cancels"
+        case readOnly = "read_only"
+        case features
     }
 }
 
@@ -83,7 +96,7 @@ struct DVBHekimRandevu: Decodable, Identifiable {
     }
 }
 
-private struct DVBHekimRandevuListesi: Decodable {
+struct DVBHekimRandevuListesi: Decodable {
     let data: [DVBHekimRandevu]
 }
 
@@ -92,7 +105,7 @@ private struct DVBHekimRandevuCevabi: Decodable {
     let message: String?
 }
 
-private enum DVBSaat {
+enum DVBSaat {
     static func saat(_ d: Date?) -> String {
         guard let d else { return "—" }
         let f = DateFormatter()
