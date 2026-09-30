@@ -142,6 +142,14 @@ struct DVBNotification: Decodable, Identifiable {
     }
 }
 
+/// DVB-000272 — bildirimin uygulamadaki yerli hedefi (sunucu üretir: HekimMesajApiController::hedef).
+/// ⚠ BURADA DURMALI: DVBModels.swift widget hedefinde de derlenir (scripts/add-widget-target.rb SHARED); bildirim modeli
+/// bu türü kullandığı için tür de bu dosyada olmalı — başka dosyaya konunca widget derlemesi "cannot find type" ile düştü.
+struct DVBHekimHedef: Decodable, Hashable {
+    let screen: String
+    let id: Int?
+}
+
 struct DVBNotificationPage: Decodable {
     let data: [DVBNotification]
     let meta: Meta?

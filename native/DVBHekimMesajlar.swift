@@ -65,11 +65,8 @@ private struct DVBHekimSohbetCevabi: Decodable {
 
 private struct DVBHekimYanitCevabi: Decodable { let message: DVBHekimMesaj }
 
-/// Bildirimin uygulamadaki yerli hedefi (sunucu üretir).
-struct DVBHekimHedef: Decodable, Hashable {
-    let screen: String
-    let id: Int?
-}
+// `DVBHekimHedef` DVBModels.swift'te: bildirim modeli onu kullanıyor ve DVBModels widget hedefinde de derleniyor
+// (scripts/add-widget-target.rb SHARED) — widget'ın görmediği bir dosyadaki türe başvurmak derlemeyi kırıyordu (#31).
 
 /// `sheet(item:)` için kimlik: aynı hedef iki kez açılabilsin.
 struct DVBHedefSunumu: Identifiable {
