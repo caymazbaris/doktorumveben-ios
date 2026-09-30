@@ -14,6 +14,10 @@ final class DVBSession: ObservableObject {
     @Published private(set) var user: DVBUser?
     @Published var unreadCount: Int = 0
 
+    /// DVB-000267 — hesap bir hekim profilini yönetiyorsa dolu; uygulama hekim sekmelerine geçer (DVBRootView).
+    /// Karar sunucuda (`GET my/doctor`: hekim → 200, diğer herkes → 403); istemci rol tahmini YAPMAZ.
+    @Published private(set) var hekim: DVBHekimBilgisi?
+
     var isLoggedIn: Bool { token != nil }
 
     init() {
@@ -27,6 +31,7 @@ final class DVBSession: ObservableObject {
             let me: DVBMe = try await DVBAPI.shared.get("auth/me", token: token)
             user = me.user
             DVBPush.kaydol()   // DVB-000109 — her açılışta yeniden yaz (jeton/sahip değişmiş olabilir)
+            await hekimiYukle()
             await ajandayiTazele()
         } catch DVBError.unauthorized {
             signOut()
@@ -57,6 +62,21 @@ final class DVBSession: ObservableObject {
         }
     }
 
+    /// DVB-000267 — hekim bilgisi + bugünkü sayaçlar. 403 → hekim değil. Ağ hatasında eldeki bilgi KORUNUR
+    /// (çevrimdışı açılışta hekim hasta sekmelerine düşmesin).
+    func hekimiYukle() async {
+        guard let token else { hekim = nil; return }
+        do {
+            hekim = try await DVBAPI.shared.get("my/doctor", token: token)
+        } catch DVBError.forbidden {
+            hekim = nil
+        } catch DVBError.unauthorized {
+            signOut()
+        } catch {
+            // sessiz
+        }
+    }
+
     func signIn(email: String, password: String) async throws {
         let res: DVBLoginResponse = try await DVBAPI.shared.post("auth/login", body: [
             "email": email,
@@ -77,6 +97,7 @@ final class DVBSession: ObservableObject {
         self.token = token
         self.user = res.user
         DVBPush.kaydol()   // DVB-000109 — bildirim izni + APNs kaydı YALNIZ giriş sonrası
+        await hekimiYukle()
     }
 
     /// Tur 241 — App Store 4.8: uygulama içi Apple ile giriş.
@@ -104,6 +125,7 @@ final class DVBSession: ObservableObject {
         self.token = token
         self.user = res.user
         DVBPush.kaydol()   // DVB-000109
+        await hekimiYukle()
     }
 
     func signOut() {
@@ -120,6 +142,7 @@ final class DVBSession: ObservableObject {
         DVBKeychain.delete()
         token = nil
         user = nil
+        hekim = nil
         unreadCount = 0
     }
 

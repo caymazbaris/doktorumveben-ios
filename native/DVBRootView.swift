@@ -29,11 +29,20 @@ struct DVBRootView: View {
 
     private var sekmeler: some View {
         TabView {
+            // DVB-000267 — hekim hesabı: ilk sekme kendi ajandası. Hasta "Randevularım" hekimde anlamsız
+            // (hekimin kendi hasta randevusu yoksa boş liste) — onun yerine Ajanda gelir.
+            if session.hekim != nil {
+                DVBHekimAjandaView()
+                    .tabItem { Label("Ajanda", systemImage: "calendar.badge.clock") }
+            }
+
             DVBSearchView()
                 .tabItem { Label("Ara", systemImage: "magnifyingglass") }
 
-            DVBAppointmentsView()
-                .tabItem { Label("Randevularım", systemImage: "calendar") }
+            if session.hekim == nil {
+                DVBAppointmentsView()
+                    .tabItem { Label("Randevularım", systemImage: "calendar") }
+            }
 
             // DVB-000264 — Bildirimler sekmesi kaldırıldı (kullanıcı: "altta bildirimler sekmesi çok yersiz").
             // Bildirimler arama ekranının başlığındaki zilden ve Hesabım'dan açılır (DVBZil.swift).
