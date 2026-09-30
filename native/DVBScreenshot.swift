@@ -46,6 +46,9 @@ struct DVBScreenshotHost: View {
     let slug: String
 
     @StateObject private var session = DVBSession()
+    // DVB-000264 — hekim sayfası artık talep formuna oturumla birlikte kilidi de geçiriyor; kök ne veriyorsa
+    // kabuk da vermeli, yoksa talep sayfası açıldığı an "ObservableObject bulunamadı" ile çöker.
+    @StateObject private var lock = DVBBiometricLock()
 
     @State private var doctor: DVBDoctor?
     @State private var hata: String?
@@ -54,6 +57,7 @@ struct DVBScreenshotHost: View {
         icerik
             .tint(DVBTheme.brand)
             .environmentObject(session)
+            .environmentObject(lock)
             .task { await hekimiGetir() }
     }
 

@@ -145,6 +145,28 @@ if (fs.existsSync(assetsMarker)) {
   warn(`capacitor-assets çalışmadı → açılış ekranı düz marka rengine (#0891B2) çevrildi (${n} dosya). Capacitor yer-tutucu logosu KALMADI, ama logolu splash için CI adımı onarılmalı.`);
 }
 
+// ── DVB-000264: uygulama içi MARKA İŞARETİ (arama ekranı başlığındaki logo) ─────────────
+// Kullanıcı (30 Eyl 2026, ilk gerçek iPhone denemesi): "Logomuz yok hiç". Yerel ekranlar `Image("BrandMark")`
+// kullanır. `ios/` her derlemede şablondan üretildiği için varlık BURADA yazılmak zorunda — elle konursa kaybolur.
+// Varlık kataloğu projede zaten kayıtlı; içine konan imageset ayrıca pbxproj kaydı istemez.
+// Kaynak: uygulama simgesiyle AYNI görsel (marka tutarlılığı). Adım patlarsa derleme DURMAZ: `Image` boş kalır,
+// çökmez; ama uyarı yazılır ki logosuz derleme sessizce mağazaya gitmesin.
+{
+  const kaynak = path.join(root, 'assets/icon-only.png');
+  const hedef = path.join(appDir, 'Assets.xcassets/BrandMark.imageset');
+  try {
+    fs.mkdirSync(hedef, { recursive: true });
+    fs.copyFileSync(kaynak, path.join(hedef, 'brandmark.png'));
+    write(path.join(hedef, 'Contents.json'), JSON.stringify({
+      images: [{ idiom: 'universal', filename: 'brandmark.png' }],
+      info: { author: 'xcode', version: 1 },
+    }, null, 2));
+    say('BrandMark.imageset yazıldı (uygulama içi logo).');
+  } catch (e) {
+    warn(`BrandMark yazılamadı — uygulama başlığında LOGO OLMAYACAK: ${e.message}`);
+  }
+}
+
 // ── 1) Info.plist izin açıklamaları ─────────────────────────────────────────
 const plistPath = path.join(appDir, 'Info.plist');
 let plist = read(plistPath);
@@ -159,8 +181,10 @@ const usageKeys = {
     'Belge ve raporları cihazınıza kaydedebilmek için galeriye erişim gerekir.',
   // Tur 230 — "Yakınımdakiler": WKWebView'daki geolocation çağrısı bu anahtar OLMADAN
   // iOS'ta sessizce reddedilir (uygulama içinde buton hiç çalışmaz).
+  // DVB-000264 — yerel arama ekranı da artık konum istiyor (il/ilçe otomatik). Metin NE için kullanıldığını ve
+  // konumun cihazdan çıkmadığını söyler (App Review 5.1.1: amaç açık yazılmalı).
   NSLocationWhenInUseUsageDescription:
-    'Size en yakın hekimleri sıralayabilmek için konumunuza erişim gerekir. Konumunuz kaydedilmez.',
+    'Bulunduğunuz il ve ilçedeki hekimleri gösterebilmek için yaklaşık konumunuz kullanılır. Konumunuz kaydedilmez ve cihazınızdan paylaşılmaz.',
   // Tur 238 — Randevuyu telefonun KENDİ takvimine yazma (DVBCalendarKit).
   // iOS 17 takvim iznini ikiye böldü: yalnız-yazma anahtarı olmadan iOS 17+'ta
   // izin diyaloğu HİÇ açılmaz; eski anahtar da iOS 16 ve altı için gerekli.

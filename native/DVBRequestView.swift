@@ -11,16 +11,33 @@ import SwiftUI
 /// limited or no native functionality".
 ///
 /// Bu ekran o akışı uygulamanın içine alır: hasta hiç web görmeden talebini bırakır.
+///
+/// DVB-000264/265 — aynı ekran FİYAT talebini de alır (`konu`) ve sitedeki kuralla BİREBİR aynı ÜYELİK şartını
+/// uygular (kullanıcı, 30 Eyl 2026: "üyelik şartı koyalım, ad soyad mail adresi şehir ve telefon bilgisi girilsin").
+/// Misafir bu bilgilerle hesap edinir; hesap şifresizdir, oturum AÇILMAZ (telefon doğrulanmadı). Sunucu
+/// `uyelik_surumu=1` gören istemciye tam kuralı uygular — mağazadaki eski sürüm bu alanı göndermez ve eski
+/// yoldan geçer (geçiş).
 struct DVBRequestView: View {
 
     let doctorSlug: String
     let doctorName: String
+    var konu: DVBTalepKonusu = .randevu
 
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var session: DVBSession
+    @EnvironmentObject private var lock: DVBBiometricLock
+    @ObservedObject private var secim = DVBKonumSecimi.shared
 
     @State private var ad = ""
     @State private var telefon = ""
     @State private var eposta = ""
+    /// Şehir kimliği (sunucudaki `cities.id`). Varsayılan: arama ekranındaki konum/il seçimi.
+    @State private var ilId: Int?
+    @State private var iller: [DVBIl] = []
+    @State private var sozlesme = false
+    /// E-posta/telefon başka bir hesaba aitse (409 `hesap_var`): giriş düğmesi görünür.
+    @State private var hesapVar = false
+    @State private var girisAcik = false
     @State private var tercihTarih = Date()
     @State private var tarihSecili = false
     /// Varsayılan 'any' ("Fark etmez") — sunucudaki listenin ilk maddesi.
@@ -48,10 +65,16 @@ struct DVBRequestView: View {
         ("evening", "Akşam (17:00 sonrası)"),
     ]
 
+    private var misafir: Bool { !session.isLoggedIn }
+
     private var gonderilebilir: Bool {
-        ad.trimmingCharacters(in: .whitespaces).count >= 3
+        let e = eposta.trimmingCharacters(in: .whitespaces)
+        return ad.trimmingCharacters(in: .whitespaces).count >= 3
             && telefon.filter(\.isNumber).count >= 10
+            && e.contains("@") && e.contains(".")
+            && ilId != nil
             && riza
+            && (!misafir || sozlesme)
             && !gonderiliyor
     }
 
@@ -68,7 +91,7 @@ struct DVBRequestView: View {
                     form
                 }
             }
-            .navigationTitle(sonuc == nil ? "Randevu Talebi" : "Talebiniz Alındı")
+            .navigationTitle(sonuc != nil ? "Talebiniz Alındı" : (konu == .fiyat ? "Fiyat Talebi" : "Randevu Talebi"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -82,6 +105,28 @@ struct DVBRequestView: View {
         // yapıyordu, burada eksikti — ve burası 4.2'yi çözen native talep formu,
         // yani incelemenin en çok baktığı ekran.
         .navigationViewStyle(.stack)
+        .task { await hazirla() }
+        // Mevcut hesaba takılan kişi burada giriş yapar; giriş olunca form hesap bilgileriyle dolar.
+        .sheet(isPresented: $girisAcik, onDismiss: { hesapBilgisiniDoldur(); if session.isLoggedIn { hesapVar = false; hata = nil } }) {
+            DVBAccountView()
+                .environmentObject(session)
+                .environmentObject(lock)
+        }
+    }
+
+    /// Şehir listesi + ön-doldurma (girişli üyenin hesabı, arama ekranındaki konum seçimi).
+    private func hazirla() async {
+        hesapBilgisiniDoldur()
+        if ilId == nil { ilId = secim.il?.id }
+        iller = await DVBCografya.iller()
+    }
+
+    private func hesapBilgisiniDoldur() {
+        guard let u = session.user else { return }
+        if ad.isEmpty, let n = u.name { ad = n }
+        // Yer tutucu adres (WhatsApp/aday hesabı) kişinin gerçek e-postası değil — forma yazılmaz (PlaceholderEmail::DOMAINS).
+        if eposta.isEmpty, let m = u.email, !m.hasSuffix("@wa.doktorumveben.com"), !m.hasSuffix("@aday.doktorumveben.com") { eposta = m }
+        if telefon.isEmpty, let p = u.phone { telefon = p }
     }
 
     // MARK: - Form
@@ -90,9 +135,26 @@ struct DVBRequestView: View {
         Form {
             Section {
                 Text(doctorName).font(.headline)
-                Text("Bu hekimin çevrimiçi takvimi yok. Bilgilerinizi bırakın, ekibimiz sizi arayıp randevunuzu oluştursun.")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
+                if konu == .fiyat {
+                    // Tur 97 yasal bilgilendirme — sitedeki fiyat formuyla aynı metin.
+                    (Text("Yasal bilgilendirme: ").bold()
+                        + Text("Sağlık hizmeti ücretleri yasal düzenlemeler gereği internet sitemizde ve uygulamamızda paylaşılamamaktadır. Talebinizi bırakın; ücret bilgisi size özel olarak iletilsin."))
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("Bu hekimin çevrimiçi takvimi yok. Bilgilerinizi bırakın, ekibimiz sizi arayıp randevunuzu oluştursun.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            if misafir {
+                Section {
+                    Text("Talep göndermek için üyelik gerekir. Aşağıdaki bilgilerle üyeliğiniz oluşturulur.")
+                        .font(.footnote)
+                    Button("Zaten üye misiniz? Giriş yapın") { girisAcik = true }
+                        .font(.footnote.weight(.semibold))
+                }
             }
 
             Section("Bilgileriniz") {
@@ -104,13 +166,20 @@ struct DVBRequestView: View {
                     .textContentType(.telephoneNumber)
                     .keyboardType(.phonePad)
 
-                TextField("E-posta (isteğe bağlı)", text: $eposta)
+                TextField("E-posta", text: $eposta)
                     .textContentType(.emailAddress)
                     .keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+
+                // ⛔ Şehir sırası sunucudan gelir (City::ordered — İstanbul, İzmir, Ankara üstte); burada SIRALANMAZ.
+                Picker("Şehir", selection: $ilId) {
+                    Text("Seçin").tag(Int?.none)
+                    ForEach(iller) { Text($0.name).tag(Int?.some($0.id)) }
+                }
             }
 
+            if konu == .randevu {
             Section("Tercihiniz (isteğe bağlı)") {
                 Toggle("Tarih belirtmek istiyorum", isOn: $tarihSecili.animation())
                 if tarihSecili {
@@ -130,6 +199,7 @@ struct DVBRequestView: View {
                 }
 
                 Toggle("İlk kez gideceğim", isOn: $ilkZiyaret)
+            }
             }
 
             Section {
@@ -151,12 +221,32 @@ struct DVBRequestView: View {
 
             Section {
                 Toggle(isOn: $riza) {
-                    Text("Talebimin iletilmesi için bilgilerimin işlenmesini onaylıyorum.")
+                    Text(misafir
+                         ? "KVKK Aydınlatma Metni'ni okudum; Açık Rıza Metni kapsamında kişisel verilerimin işlenmesine ve talebim için benimle iletişime geçilmesine açık rıza veriyorum."
+                         : "Talebimin iletilmesi için bilgilerimin işlenmesini onaylıyorum.")
+                        .font(.footnote)
+                }
+                if misafir {
+                    Toggle(isOn: $sozlesme) {
+                        Text("Üyelik Sözleşmesi ve Gizlilik Politikası'nı okudum, kabul ediyorum.")
+                            .font(.footnote)
+                    }
+                    // Metinler web'de; Safari'de açılır (yasal metin — uygulamanın ana akışı değil).
+                    Link("KVKK Aydınlatma Metni", destination: DVBConfig.webBase.appendingPathComponent("sozlesmeler/kvkk-aydinlatma"))
+                        .font(.footnote)
+                    Link("Açık Rıza Metni", destination: DVBConfig.webBase.appendingPathComponent("sozlesmeler/acik-riza"))
+                        .font(.footnote)
+                    Link("Üyelik Sözleşmesi", destination: DVBConfig.webBase.appendingPathComponent("sozlesmeler/uyelik-sozlesmesi"))
                         .font(.footnote)
                 }
             } footer: {
                 if let hata {
-                    Text(hata).foregroundColor(.red)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(hata).foregroundColor(.red)
+                        if hesapVar {
+                            Button("Giriş yap") { girisAcik = true }.font(.footnote.weight(.semibold))
+                        }
+                    }
                 }
             }
 
@@ -167,7 +257,7 @@ struct DVBRequestView: View {
                     HStack {
                         Spacer()
                         if gonderiliyor { ProgressView().padding(.trailing, 6) }
-                        Text(gonderiliyor ? "Gönderiliyor…" : "Talebi Gönder").bold()
+                        Text(gonderiliyor ? "Gönderiliyor…" : (misafir ? "Üye Ol ve Talebi Gönder" : "Talebi Gönder")).bold()
                         Spacer()
                     }
                 }
@@ -196,10 +286,16 @@ struct DVBRequestView: View {
                 .padding(.top, 4)
             }
 
-            Text("Ekibimiz en kısa sürede sizi arayacak.")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
+            if s.uyelikAcildi == true {
+                // Oturum AÇILMADI (telefon doğrulanmadı). Hesap şifresiz: "Parolamı unuttum" telefona kod gönderir.
+                Text("Üyeliğiniz oluşturuldu. Hesabım › Parolamı unuttum adımıyla telefonunuza gelen kodla şifre belirleyip giriş yapabilirsiniz.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(12)
+                    .background(DVBTheme.accent.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
 
             Spacer()
         }
@@ -215,29 +311,37 @@ struct DVBRequestView: View {
         var govde: [String: Any] = [
             "name": ad.trimmingCharacters(in: .whitespaces),
             "phone": telefon,
+            "email": eposta.trimmingCharacters(in: .whitespaces),
             "consent": true,
-            "is_first_visit": ilkZiyaret,
+            "topic": konu.rawValue,
+            // DVB-000265 — sunucu bu alanı gören istemciye TAM üyelik kuralını uygular (eski sürüm göndermez).
+            "uyelik_surumu": 1,
         ]
-        if !eposta.trimmingCharacters(in: .whitespaces).isEmpty {
-            govde["email"] = eposta.trimmingCharacters(in: .whitespaces)
-        }
-        if tarihSecili {
+        if let ilId { govde["city_id"] = ilId }
+        if misafir { govde["terms"] = sozlesme }
+        if konu == .randevu { govde["is_first_visit"] = ilkZiyaret }
+        if konu == .randevu, tarihSecili {
             let f = DateFormatter()
             f.locale = Locale(identifier: "en_US_POSIX")
             f.timeZone = DVBTime.klinik
             f.dateFormat = "yyyy-MM-dd"
             govde["preferred_date"] = f.string(from: tercihTarih)
         }
-        govde["preferred_slot"] = tercihDilim
+        if konu == .randevu { govde["preferred_slot"] = tercihDilim }
         if !not.trimmingCharacters(in: .whitespaces).isEmpty {
             govde["note"] = not.trimmingCharacters(in: .whitespaces)
         }
 
         do {
+            // Jeton gönderilir: girişli üyenin talebi ONA bağlanır (eski sürüm jetonsuz gönderiyordu).
             let cevap: DVBRequestResult = try await DVBAPI.shared.post(
-                "doctors/\(doctorSlug)/request", body: govde
+                "doctors/\(doctorSlug)/request", body: govde, token: session.token
             )
             sonuc = cevap
+        } catch DVBError.server(409, let mesaj) {
+            // ⛔ Bu e-posta/telefon başka bir hesaba ait: hesap AÇILMADI. Kişi giriş yapıp tekrar gönderir.
+            hesapVar = true
+            hata = mesaj ?? "Bu e-posta ya da telefonla bir üyeliğiniz var. Giriş yapıp talebinizi gönderin."
         } catch {
             // 422 gövdesindeki sunucu mesajı DVBError.server içinde taşınıyor.
             hata = (error as? LocalizedError)?.errorDescription

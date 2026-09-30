@@ -15,9 +15,17 @@ struct DVBSearchView: View {
     @State private var specialties: [DVBSpecialty] = []
     @State private var selectedSpecialty: DVBSpecialty?
     @State private var doctors: [DVBDoctor] = []
+    @State private var toplam: Int?
     @State private var loading = false
     @State private var error: String?
     @State private var searchTask: Task<Void, Never>?
+
+    // DVB-000264 — il/ilçe filtresi + konumdan otomatik il/ilçe.
+    @StateObject private var secim = DVBKonumSecimi.shared
+    @ObservedObject private var konum = DVBKonum.shared
+    @State private var filtreAcik = false
+    /// İlk açılışta konumu YALNIZ BİR KEZ kendiliğinden iste (her sekme dönüşünde sormasın).
+    @AppStorage("dvb.konumIlkSoruldu") private var konumIlkSoruldu = false
 
     var body: some View {
         NavigationView {
@@ -58,7 +66,9 @@ struct DVBSearchView: View {
                     DVBStateView(
                         icon: "magnifyingglass",
                         title: "Sonuç yok",
-                        message: "Farklı bir isim ya da branş deneyin."
+                        message: secim.ilce != nil
+                            ? "Bu ilçede sonuç yok. Filtreden ilçeyi \"Tümü\" yapmayı deneyin."
+                            : "Farklı bir isim, branş ya da şehir deneyin."
                     )
                     .frame(minHeight: 220)
                     .listRowSeparator(.hidden)
@@ -71,16 +81,88 @@ struct DVBSearchView: View {
                 }
             }
             .listStyle(.plain)
-            .safeAreaInset(edge: .top) { specialtyChips }
+            .safeAreaInset(edge: .top) {
+                VStack(spacing: 0) {
+                    konumSatiri
+                    specialtyChips
+                }
+                .background(.bar)
+            }
+            // "Hekim ara" geri düğmesi/erişilebilirlik için başlık olarak KALIR; ekranda logonun altında görünmez.
             .navigationTitle("Hekim ara")
-            .searchable(text: $query, prompt: "İsim ya da branş")
+            // DVB-000264 — logo başlıkta. Büyük başlık yerine satır içi: logo + her zaman görünen arama kutusu +
+            // konum + branş çipleri zaten dikey alanı dolduruyor; üstüne büyük başlık listeyi ekranın yarısına iterdi.
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) { DVBBrandLogo() }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        filtreAcik = true
+                    } label: {
+                        Image(systemName: secim.il == nil
+                              ? "line.3.horizontal.decrease.circle"
+                              : "line.3.horizontal.decrease.circle.fill")
+                    }
+                    .accessibilityLabel("Filtrele")
+                }
+            }
+            // ⛔ DVB-000264 — `.navigationBarDrawer(displayMode: .always)`: varsayılan yerleşimde iOS arama kutusunu
+            // AŞAĞI ÇEKİLENE KADAR GİZLER. Kullanıcı: "Hekim ara bandı kayıp aşağıya kaydırınca geliyor sadece".
+            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Hekim adı ara")
             .onChange(of: query) { _ in debouncedReload() }
+            // Sayfa "Uygula" ile de kaydırılarak da kapansa liste seçimle HİZALANSIN (etiket başka, liste başka kalmasın).
+            .sheet(isPresented: $filtreAcik, onDismiss: reload) {
+                DVBFiltreSayfasi(secim: secim, konum: konum) {}
+            }
             .task {
                 await loadSpecialties()
+                await ilkKonum()
                 if doctors.isEmpty { reload() }
             }
         }
         .navigationViewStyle(.stack)
+    }
+
+    /// Konum / il-ilçe satırı + sonuç sayısı. Dokununca filtre sayfası açılır.
+    private var konumSatiri: some View {
+        Button {
+            filtreAcik = true
+        } label: {
+            HStack(spacing: 6) {
+                if konum.calisiyor {
+                    ProgressView().scaleEffect(0.8)
+                    Text("Konumunuz bulunuyor…")
+                } else if let ozet = secim.ozet {
+                    Image(systemName: secim.konumdan ? "location.fill" : "mappin.and.ellipse")
+                        .foregroundColor(DVBTheme.brand)
+                    Text(ozet).fontWeight(.semibold).foregroundColor(.primary)
+                } else {
+                    Image(systemName: "location").foregroundColor(DVBTheme.brand)
+                    Text("Tüm Türkiye · Şehir seçin").foregroundColor(.primary)
+                }
+                Spacer(minLength: 8)
+                if let toplam, !loading {
+                    Text("\(toplam.formatted()) hekim").foregroundColor(.secondary)
+                }
+                Image(systemName: "chevron.right").font(.caption2).foregroundColor(.secondary)
+            }
+            .font(.subheadline)
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 2)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Kullanıcı (30 Eyl 2026): "konum isteyip ona göre il ilçeyi belirlesin otomatik". İlk açılışta, seçim yoksa
+    /// ve daha önce sorulmadıysa konum istenir; red/hata sessizce "Tüm Türkiye"ye düşer (ekran boş kalmaz).
+    private func ilkKonum() async {
+        guard secim.il == nil, !konumIlkSoruldu, !konum.reddedildi else { return }
+        konumIlkSoruldu = true
+        guard let yer = await konum.konumAl(), let eslesme = await DVBCografya.esle(yer) else { return }
+        secim.il = eslesme.0
+        secim.ilce = eslesme.1
+        secim.konumdan = true
     }
 
     private var specialtyChips: some View {
@@ -100,7 +182,6 @@ struct DVBSearchView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
         }
-        .background(.bar)
     }
 
     private func chip(title: String, active: Bool, action: @escaping () -> Void) -> some View {
@@ -145,13 +226,19 @@ struct DVBSearchView: View {
             let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
             if !q.isEmpty { params["q"] = q }
             if let slug = selectedSpecialty?.slug { params["specialty"] = slug }
+            if let il = secim.il { params["city"] = il.slug }
+            if let ilce = secim.ilce { params["district"] = ilce.slug }
 
             do {
                 let page: DVBDoctorPage = try await DVBAPI.shared.get("doctors", query: params)
-                if !Task.isCancelled { doctors = page.data }
+                if !Task.isCancelled {
+                    doctors = page.data
+                    toplam = page.meta?.total
+                }
             } catch {
                 if !Task.isCancelled {
                     doctors = []
+                    toplam = nil
                     self.error = (error as? DVBError)?.errorDescription ?? "Bilinmeyen hata."
                 }
             }

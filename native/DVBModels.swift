@@ -213,6 +213,13 @@ struct DVBCity: Decodable, Identifiable {
 struct DVBRequestResult: Decodable {
     let request: Detail?
     let message: String?
+    /// DVB-000265 — form yeni bir hesap açtıysa true (oturum AÇILMADI; kişi sonra kodla girer). Eski sunucuda yok.
+    let uyelikAcildi: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case request, message
+        case uyelikAcildi = "uyelik_acildi"
+    }
 
     struct Detail: Decodable {
         let refCode: String?
