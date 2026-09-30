@@ -301,6 +301,10 @@ struct DVBFiltreSayfasi: View {
                         }
                     }
                 }
+
+                // DVB-000268 — sitedeki diğer filtreler (cinsiyet, görüşme türü, doğrulanmış, ilgi alanı, sigorta,
+                // dil, sıralama).
+                DVBEkFiltreler(filtre: DVBAramaFiltresi.shared)
             }
             .navigationTitle("Filtrele")
             .navigationBarTitleDisplayMode(.inline)

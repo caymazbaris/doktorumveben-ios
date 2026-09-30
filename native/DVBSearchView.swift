@@ -24,6 +24,12 @@ struct DVBSearchView: View {
     @StateObject private var secim = DVBKonumSecimi.shared
     @ObservedObject private var konum = DVBKonum.shared
     @State private var filtreAcik = false
+    // DVB-000268 — sitedeki diğer filtreler.
+    @ObservedObject private var filtre = DVBAramaFiltresi.shared
+    // DVB-000269 — hekimden bağımsız talep ("Doktor Bul").
+    @State private var doktorBulAcik = false
+    @EnvironmentObject private var session: DVBSession
+    @EnvironmentObject private var lock: DVBBiometricLock
     /// İlk açılışta konumu YALNIZ BİR KEZ kendiliğinden iste (her sekme dönüşünde sormasın).
     @AppStorage("dvb.konumIlkSoruldu") private var konumIlkSoruldu = false
 
@@ -52,6 +58,29 @@ struct DVBSearchView: View {
             // bu. Oraya arama eklenirse aynı tuzak orada da açılır.
             // ═══════════════════════════════════════════════════════════════════════
             List {
+                // DVB-000269 — kullanıcı: "Doktordan bağımsız randevu talep et kısmı yapalım şehir branş vs ile talep
+                // edebilsin". Listenin en üstünde; hekim seçmeden talep bırakmanın yolu.
+                Button {
+                    doktorBulAcik = true
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "person.crop.circle.badge.questionmark")
+                            .font(.title2)
+                            .foregroundColor(DVBTheme.brand)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Hekim seçmeden talep bırakın").font(.subheadline.weight(.semibold)).foregroundColor(.primary)
+                            Text("Branşı ve şehri söyleyin, size uygun hekimi biz bulalım.").font(.caption).foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption).foregroundColor(.secondary)
+                    }
+                    .padding(12)
+                    .background(DVBTheme.brand.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .listRowSeparator(.hidden)
+
                 if loading && doctors.isEmpty {
                     ProgressView("Hekimler getiriliyor…")
                         .frame(maxWidth: .infinity, minHeight: 220)
@@ -100,7 +129,7 @@ struct DVBSearchView: View {
                     Button {
                         filtreAcik = true
                     } label: {
-                        Image(systemName: secim.il == nil
+                        Image(systemName: secim.il == nil && filtre.etkinSayisi == 0
                               ? "line.3.horizontal.decrease.circle"
                               : "line.3.horizontal.decrease.circle.fill")
                     }
@@ -112,6 +141,9 @@ struct DVBSearchView: View {
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Hekim adı ara")
             .onChange(of: query) { _ in debouncedReload() }
             // Sayfa "Uygula" ile de kaydırılarak da kapansa liste seçimle HİZALANSIN (etiket başka, liste başka kalmasın).
+            .sheet(isPresented: $doktorBulAcik) {
+                DVBDoktorBulView().environmentObject(session).environmentObject(lock)
+            }
             .sheet(isPresented: $filtreAcik, onDismiss: reload) {
                 DVBFiltreSayfasi(secim: secim, konum: konum) {}
             }
@@ -140,6 +172,9 @@ struct DVBSearchView: View {
                 } else {
                     Image(systemName: "location").foregroundColor(DVBTheme.brand)
                     Text("Tüm Türkiye · Şehir seçin").foregroundColor(.primary)
+                }
+                if filtre.etkinSayisi > 0 {
+                    Text("· \(filtre.etkinSayisi) filtre").foregroundColor(DVBTheme.brand)
                 }
                 Spacer(minLength: 8)
                 if let toplam, !loading {
@@ -229,6 +264,7 @@ struct DVBSearchView: View {
             if let slug = selectedSpecialty?.slug { params["specialty"] = slug }
             if let il = secim.il { params["city"] = il.slug }
             if let ilce = secim.ilce { params["district"] = ilce.slug }
+            params.merge(filtre.parametreler) { _, yeni in yeni }
 
             do {
                 let page: DVBDoctorPage = try await DVBAPI.shared.get("doctors", query: params)
