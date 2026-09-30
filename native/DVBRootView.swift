@@ -35,9 +35,8 @@ struct DVBRootView: View {
             DVBAppointmentsView()
                 .tabItem { Label("Randevularım", systemImage: "calendar") }
 
-            DVBNotificationsView()
-                .tabItem { Label("Bildirimler", systemImage: "bell") }
-                .badge(session.unreadCount)
+            // DVB-000264 — Bildirimler sekmesi kaldırıldı (kullanıcı: "altta bildirimler sekmesi çok yersiz").
+            // Bildirimler arama ekranının başlığındaki zilden ve Hesabım'dan açılır (DVBZil.swift).
 
             DVBAccountView()
                 .tabItem { Label("Hesabım", systemImage: "person.crop.circle") }

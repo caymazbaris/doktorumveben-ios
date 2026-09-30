@@ -16,6 +16,8 @@ struct DVBAccountView: View {
     @State private var error: String?
     @State private var confirmDelete = false
     @State private var webSheet: DVBIdentifiableURL?
+    /// DVB-000264 — bildirimler artık sekme değil; buradan da açılır.
+    @State private var bildirimlerAcik = false
 
     var body: some View {
         NavigationView {
@@ -42,6 +44,29 @@ struct DVBAccountView: View {
                     }
                 }
                 .padding(.vertical, 4)
+            }
+
+            Section {
+                Button {
+                    bildirimlerAcik = true
+                } label: {
+                    HStack {
+                        Label("Bildirimler", systemImage: "bell")
+                        Spacer()
+                        if session.unreadCount > 0 {
+                            Text("\(session.unreadCount)")
+                                .font(.caption.weight(.bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(Color.red))
+                        }
+                    }
+                }
+                .foregroundColor(.primary)
+                .sheet(isPresented: $bildirimlerAcik, onDismiss: { Task { await session.okunmamisiYenile() } }) {
+                    DVBNotificationsView().environmentObject(session)
+                }
             }
 
             Section("Sağlık kayıtlarım") {

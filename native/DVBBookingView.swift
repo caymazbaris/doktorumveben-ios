@@ -310,7 +310,8 @@ struct DVBBookingView: View {
             response = DVBSlotsResponse(type: .init(id: 0, name: nil, duration: nil), slots: [:])
             hata = nil
         } catch {
-            hata = (error as? DVBError)?.errorDescription ?? "Bilinmeyen hata."
+            // DVB-000264 — İPTAL (sekme değişimi/yeniden çizim) hata DEĞİL: ekrandakini koru, "internet yok" deme.
+            if let mesaj = DVBError.mesaj(error) { hata = mesaj }
         }
         yukleniyor = false
     }

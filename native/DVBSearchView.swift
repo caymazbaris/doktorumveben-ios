@@ -94,6 +94,7 @@ struct DVBSearchView: View {
             // konum + branş çipleri zaten dikey alanı dolduruyor; üstüne büyük başlık listeyi ekranın yarısına iterdi.
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) { DVBZilDugmesi() }
                 ToolbarItem(placement: .principal) { DVBBrandLogo() }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
@@ -236,10 +237,11 @@ struct DVBSearchView: View {
                     toplam = page.meta?.total
                 }
             } catch {
-                if !Task.isCancelled {
+                // DVB-000264 — İPTAL (sekme değişimi/yeniden çizim) hata DEĞİL: ekrandakini koru, "internet yok" deme.
+                if !Task.isCancelled, let mesaj = DVBError.mesaj(error) {
                     doctors = []
                     toplam = nil
-                    self.error = (error as? DVBError)?.errorDescription ?? "Bilinmeyen hata."
+                    self.error = mesaj
                 }
             }
         }

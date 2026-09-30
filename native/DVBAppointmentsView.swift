@@ -99,8 +99,10 @@ struct DVBAppointmentsView: View {
         } catch DVBError.unauthorized {
             session.signOut()
         } catch {
+            // DVB-000264 — İPTAL (sekme değişimi/yeniden çizim) hata DEĞİL: ekrandakini koru, "internet yok" deme.
+            guard let mesaj = DVBError.mesaj(error) else { return }
             items = []
-            self.error = (error as? DVBError)?.errorDescription ?? "Bilinmeyen hata."
+            self.error = mesaj
         }
     }
 }

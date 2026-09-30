@@ -287,7 +287,8 @@ struct DVBDoctorDetailView: View {
             detail = try await DVBAPI.shared.get("doctors/\(doctor.slug)")
             error = nil
         } catch {
-            self.error = (error as? DVBError)?.errorDescription ?? "Bilinmeyen hata."
+            // DVB-000264 — İPTAL (sekme değişimi/yeniden çizim) hata DEĞİL: ekrandakini koru, "internet yok" deme.
+            if let mesaj = DVBError.mesaj(error) { self.error = mesaj }
         }
     }
 }

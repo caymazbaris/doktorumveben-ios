@@ -9,6 +9,13 @@ enum DVBError: LocalizedError {
     case server(Int, String?)
     case decoding
 
+    /// DVB-000264 — ekranda gösterilecek metin; İPTAL için nil (gösterilmez). Ekranlar `catch` içinde bunu kullanır:
+    /// `if let m = DVBError.mesaj(error) { self.error = m }`.
+    static func mesaj(_ error: Error) -> String? {
+        if error is CancellationError || (error as? URLError)?.code == .cancelled { return nil }
+        return (error as? DVBError)?.errorDescription ?? "Bilinmeyen hata."
+    }
+
     var errorDescription: String? {
         switch self {
         case .offline:
@@ -112,7 +119,18 @@ actor DVBAPI {
         do {
             (data, response) = try await session.data(for: req)
         } catch {
-            // Ağ katmanı hatası — hastaya teknik metin göstermeyiz.
+            // ⛔ DVB-000264 — kullanıcı (30 Eyl 2026): "bildirimler bölümünde internet bağlantısı yok gibi görünüyor diyor
+            // olduğu halde". Uç ölçüldü: 5 ms, HTTP 200. Neden: ağ katmanındaki HER hata "internet yok" sayılıyordu —
+            // İPTAL edilen istek de. SwiftUI bir ekrandan ayrılırken (sekme değişimi, yeniden çizim) `.task`/
+            // `.refreshable` görevini iptal eder; URLSession `URLError.cancelled` fırlatır ve ekran yalan söylerdi.
+            // İptal ayrı bir hata: ekranlar onu GÖSTERMEZ (DVBError.mesaj → nil).
+            if error is CancellationError || (error as? URLError)?.code == .cancelled {
+                throw CancellationError()
+            }
+            if (error as? URLError)?.code == .timedOut {
+                throw DVBError.server(0, "Sunucu zamanında yanıt vermedi. Biraz sonra tekrar deneyin.")
+            }
+            // Gerçek bağlantı hatası — hastaya teknik metin göstermeyiz.
             throw DVBError.offline
         }
 
