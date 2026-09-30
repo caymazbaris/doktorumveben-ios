@@ -93,6 +93,7 @@ final class DVBSession: ObservableObject {
             throw DVBError.server(200, res.message ?? "Giriş yapılamadı.")
         }
 
+        DVBWebOturum.temizle()   // DVB-000273 — aynı cihazda önceki kişinin web oturumu kalmasın
         DVBKeychain.save(token)
         self.token = token
         self.user = res.user
@@ -121,6 +122,7 @@ final class DVBSession: ObservableObject {
             throw DVBError.server(200, res.message ?? "Apple ile giriş yapılamadı.")
         }
 
+        DVBWebOturum.temizle()   // DVB-000273 — aynı cihazda önceki kişinin web oturumu kalmasın
         DVBKeychain.save(token)
         self.token = token
         self.user = res.user
@@ -140,6 +142,8 @@ final class DVBSession: ObservableObject {
             }
         }
         DVBKeychain.delete()
+        // DVB-000273 — uygulama içi web sayfalarının oturumu da kapanır; kalsaydı sonraki kişi öncekinin panelini açardı.
+        DVBWebOturum.temizle()
         token = nil
         user = nil
         hekim = nil

@@ -54,7 +54,19 @@ struct DVBWebContainer: UIViewRepresentable {
         web.allowsBackForwardNavigationGestures = true
         // DVB-000271 — sayfa DOĞRUDAN bir ödeme adresiyle açılmak istenirse (ör. bildirim) içeride hiç yüklenmez;
         // tarayıcıya devri ve sayfanın kapanışı DVBWebSheet.onAppear'da.
-        if !DVBOdemeAdresi.odemeSayfasiMi(url) {
+        if DVBOdemeAdresi.odemeSayfasiMi(url) {
+            return web
+        }
+        // DVB-000273 — oturum gerektiren sayfa (panel / Hesabım): önce tek kullanımlık giriş adresi alınır, web görünümü
+        // uygulamanın oturumuyla açılır. Adres alınamazsa sayfa eskisi gibi açılır (gerekirse web girişi).
+        if DVBWebOturum.kopruGerekirMi(url) {
+            context.coordinator.sonHedef = url
+            let hedef = url
+            Task { @MainActor in
+                let adres = await DVBWebOturum.kopruAdresi(hedef)
+                web.load(URLRequest(url: adres ?? hedef))
+            }
+        } else {
             web.load(URLRequest(url: url))
         }
         return web
@@ -63,6 +75,27 @@ struct DVBWebContainer: UIViewRepresentable {
     func updateUIView(_ uiView: WKWebView, context: Context) {}
 
     final class Coordinator: NSObject, WKNavigationDelegate {
+
+        /// DVB-000273 — oturum gerektiren son hedef (oturum düşerse köprü bununla yenilenir).
+        var sonHedef: URL?
+        /// Aynı düşüşte sonsuz köprü döngüsüne girmemek için: arka arkaya en çok bir kez (İksHesap ile aynı kural).
+        private var kopruYenilendi = false
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            // Oturum düşmüşse site giriş sayfasına yönlendirir. Uygulamada zaten giriş yapılmış: web giriş formu yerine
+            // köprü BİR KEZ yenilenir. Yine olmazsa (ör. iki adımlı doğrulama açık) giriş sayfası kalır.
+            if DVBWebOturum.girisSayfasiMi(webView.url) {
+                guard !kopruYenilendi, let hedef = sonHedef else { return }
+                kopruYenilendi = true
+                Task { @MainActor in
+                    if let adres = await DVBWebOturum.kopruAdresi(hedef) {
+                        webView.load(URLRequest(url: adres))
+                    }
+                }
+                return
+            }
+            kopruYenilendi = false
+        }
 
         /// DVB-000120 — kimlik sağlayıcı alan adları. Buraya bir gezinme gelirse
         /// kullanıcı Safari'ye ATILMAZ; sessizce iptal edilir.
@@ -111,6 +144,10 @@ struct DVBWebContainer: UIViewRepresentable {
 
             // about:blank / data: gibi şemalar ve kendi alan adımız içeride kalır.
             if ours || target.scheme == "about" {
+                // DVB-000273 — oturum gerektiren sayfaya gidiliyorsa son hedef odur (oturum düşerse köprü bununla yenilenir).
+                if ours, navigationAction.targetFrame?.isMainFrame ?? true, DVBWebOturum.kopruGerekirMi(target) {
+                    sonHedef = target
+                }
                 decisionHandler(.allow)
                 return
             }
