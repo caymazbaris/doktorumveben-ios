@@ -69,6 +69,26 @@ struct DVBAccountView: View {
                 }
             }
 
+            // DVB-000266 — sitedeki üye alanının bölümleri (1. adım). Kullanıcı: "hesabım kısmında da sitede üyenin
+            // profilinde olan herşey olmalı".
+            Section("Hesabım") {
+                NavigationLink(destination: DVBProfilView()) {
+                    Label("Profil bilgilerim", systemImage: "person.text.rectangle")
+                }
+                NavigationLink(destination: DVBYakinlarView()) {
+                    Label("Yakınlarım", systemImage: "person.2")
+                }
+                NavigationLink(destination: DVBFavorilerView()) {
+                    Label("Favori hekimlerim", systemImage: "heart")
+                }
+                NavigationLink(destination: DVBYorumlarView()) {
+                    Label("Değerlendirmelerim", systemImage: "star.bubble")
+                }
+                NavigationLink(destination: DVBOdemelerView()) {
+                    Label("Ödemelerim", systemImage: "creditcard")
+                }
+            }
+
             Section("Sağlık kayıtlarım") {
                 NavigationLink(destination: DVBDocumentsView()) {
                     Label("Belgelerim", systemImage: "doc.text")
@@ -117,11 +137,8 @@ struct DVBAccountView: View {
             }
 
             Section("Hesap") {
-                Button {
-                    webSheet = .init(url: DVBConfig.webBase.appendingPathComponent("hesabim/profil"))
-                } label: {
-                    Label("Profil bilgilerim", systemImage: "person.text.rectangle")
-                }
+                // DVB-000266 — "Profil bilgilerim" yukarıda YEREL ekran. Burada sitenin sayfasını web penceresinde
+                // açıyordu; uygulamanın oturumu o pencereye taşınmadığı için kişi giriş sayfası görüyordu.
                 Button {
                     // DVB-000168 — sitede herkese açık /gizlilik YOK (o adres hekim panelinin içinde);
                     // hasta 404 görüyordu. Gerçek sayfa /sozlesmeler/gizlilik.
