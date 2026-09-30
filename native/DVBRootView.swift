@@ -44,10 +44,20 @@ struct DVBRootView: View {
                 DVBHekimTaleplerView()
                     .tabItem { Label("Talepler", systemImage: "tray") }
                     .badge(hekim.pendingCancels ?? 0)
+
+                // DVB-000271 — web'deki Ödeme Linki / Tahsilatlarım ile aynı kapı (`features.payments`).
+                if hekim.odemelerAcik {
+                    DVBHekimTahsilatView()
+                        .tabItem { Label("Tahsilat", systemImage: "creditcard") }
+                }
             }
 
-            DVBSearchView()
-                .tabItem { Label("Ara", systemImage: "magnifyingglass") }
+            // DVB-000271 — hekim modunda 5 sekme sınırı (Ajanda, Hastalar, Talepler, Tahsilat, Hesabım): 6. sekme iOS'ta
+            // "Diğer" menüsüne düşer ve Hesabım gizlenir. Hekim arama sekmesi yalnız sekme sayısı 6 olacaksa kalkar.
+            if !(session.hekim?.odemelerAcik ?? false) || !(session.hekim?.hastalarAcik ?? false) {
+                DVBSearchView()
+                    .tabItem { Label("Ara", systemImage: "magnifyingglass") }
+            }
 
             if session.hekim == nil {
                 DVBAppointmentsView()

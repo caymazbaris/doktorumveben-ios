@@ -26,10 +26,12 @@ struct DVBHekimBilgisi: Decodable {
     struct Ozellikler: Decodable {
         let patients: Bool?
         let questions: Bool?
+        let payments: Bool?
     }
 
     var hastalarAcik: Bool { features?.patients ?? false }
     var sorularAcik: Bool { features?.questions ?? false }
+    var odemelerAcik: Bool { features?.payments ?? false }
 
     struct Hekim: Decodable {
         let id: Int
@@ -146,6 +148,7 @@ private enum DVBHekimIslem {
         case "cancel": return "İptal et"
         case "approve-cancel": return "İptal talebini onayla"
         case "paid-in-person": return "Elden ödendi"
+        case "send-payment-link": return "Ödeme bağlantısını WhatsApp'tan gönder"
         default: return i
         }
     }
@@ -159,12 +162,23 @@ private enum DVBHekimIslem {
         case "cancel": return "xmark.circle"
         case "approve-cancel": return "calendar.badge.minus"
         case "paid-in-person": return "banknote"
+        case "send-payment-link": return "creditcard"
         default: return "circle"
         }
     }
 
     /// Geri alınamaz/hastaya bildirim gönderen işlemler onay ister.
-    static func onayIster(_ i: String) -> Bool { ["cancel", "no-show", "approve-cancel"].contains(i) }
+    static func onayIster(_ i: String) -> Bool { ["cancel", "no-show", "approve-cancel", "send-payment-link"].contains(i) }
+
+    /// Kırmızı çizilecek (geri alınamaz, randevuyu bozan) işlemler. Ödeme bağlantısı onay ister ama yıkıcı değildir.
+    static func yikiciMi(_ i: String) -> Bool { ["cancel", "no-show", "approve-cancel"].contains(i) }
+
+    /// Onay sorusunun açıklaması — hastaya mesaj giden işlemde ne olacağı açıkça yazılır.
+    static func onayAciklamasi(_ i: String) -> String {
+        i == "send-payment-link"
+            ? "Hastaya Doktorum Ve Ben WhatsApp hattından ödeme bağlantısı gönderilir. Hasta bağlantıyı tarayıcıda açıp öder."
+            : "Bu işlem hastaya bildirilebilir ve geri alınamaz."
+    }
 }
 
 // MARK: - Ajanda
@@ -413,7 +427,7 @@ struct DVBHekimRandevuDetayView: View {
             if let islemler = r.actions, !islemler.isEmpty {
                 Section {
                     ForEach(islemler, id: \.self) { i in
-                        Button(role: DVBHekimIslem.onayIster(i) ? .destructive : nil) {
+                        Button(role: DVBHekimIslem.yikiciMi(i) ? .destructive : nil) {
                             if i == "cancel" { iptalAcik = true }
                             else if DVBHekimIslem.onayIster(i) { onayBekleyen = i }
                             else { Task { await uygula(i) } }
@@ -438,12 +452,12 @@ struct DVBHekimRandevuDetayView: View {
         .alert(onayBekleyen.map { DVBHekimIslem.etiket($0) + "?" } ?? "",
                isPresented: Binding(get: { onayBekleyen != nil }, set: { if !$0 { onayBekleyen = nil } })) {
             Button("Vazgeç", role: .cancel) { onayBekleyen = nil }
-            Button("Evet", role: .destructive) {
+            Button("Evet", role: DVBHekimIslem.yikiciMi(onayBekleyen ?? "") ? .destructive : nil) {
                 if let i = onayBekleyen { Task { await uygula(i) } }
                 onayBekleyen = nil
             }
         } message: {
-            Text("Bu işlem hastaya bildirilebilir ve geri alınamaz.")
+            Text(DVBHekimIslem.onayAciklamasi(onayBekleyen ?? ""))
         }
         .sheet(isPresented: $iptalAcik) {
             NavigationView {

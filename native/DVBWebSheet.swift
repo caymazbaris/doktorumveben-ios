@@ -29,6 +29,14 @@ struct DVBWebSheet: View {
                 }
         }
         .navigationViewStyle(.stack)
+        // ⛔ DVB-000271 — ödeme adresi (bildirim, Hesabım bağlantısı…) bu sayfayla açılmak istenirse: tarayıcıya devret,
+        // boş sayfayı kapat. Kullanıcı: "ödemeyi linki kesinlikle browserda açılır olsun".
+        .onAppear {
+            if DVBOdemeAdresi.odemeSayfasiMi(url) {
+                DVBOdemeAdresi.tarayicidaAc(url)
+                presentation.wrappedValue.dismiss()
+            }
+        }
     }
 }
 
@@ -44,7 +52,11 @@ struct DVBWebContainer: UIViewRepresentable {
         let web = WKWebView(frame: .zero, configuration: config)
         web.navigationDelegate = context.coordinator
         web.allowsBackForwardNavigationGestures = true
-        web.load(URLRequest(url: url))
+        // DVB-000271 — sayfa DOĞRUDAN bir ödeme adresiyle açılmak istenirse (ör. bildirim) içeride hiç yüklenmez;
+        // tarayıcıya devri ve sayfanın kapanışı DVBWebSheet.onAppear'da.
+        if !DVBOdemeAdresi.odemeSayfasiMi(url) {
+            web.load(URLRequest(url: url))
+        }
         return web
     }
 
@@ -87,6 +99,15 @@ struct DVBWebContainer: UIViewRepresentable {
 
             let host = target.host ?? ""
             let ours = host == "doktorumveben.com" || host.hasSuffix(".doktorumveben.com")
+
+            // ⛔ DVB-000271 — ÖDEME SAYFASI UYGULAMA İÇİNDE AÇILMAZ, sistem tarayıcısına devredilir. Kullanıcı: "ödemeyi
+            // linki kesinlikle browserda açılır olsun". Eskiden kendi alan adımızdaki her adres (ödeme sayfaları dahil)
+            // burada, uygulamanın içinde açılıyordu. Kural tek yerde: DVBOdemeAdresi.
+            if DVBOdemeAdresi.odemeSayfasiMi(target) {
+                decisionHandler(.cancel)
+                DVBOdemeAdresi.tarayicidaAc(target)
+                return
+            }
 
             // about:blank / data: gibi şemalar ve kendi alan adımız içeride kalır.
             if ours || target.scheme == "about" {
