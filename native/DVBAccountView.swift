@@ -102,6 +102,15 @@ struct DVBAccountView: View {
                 }
             }
 
+            // DVB-000279 — iki adımlı doğrulama (web ayar ekranlarıyla aynı kurallar; Android'de web sayfası).
+            Section {
+                NavigationLink(destination: DVBIkiAdimAyarView()) {
+                    Label("İki adımlı doğrulama", systemImage: "lock.shield")
+                }
+            } header: {
+                Text("Güvenlik")
+            }
+
             // DVB-000111 — biyometrik kilit. Cihaz desteklemiyorsa bölüm HİÇ gösterilmez;
             // açılamayacak bir anahtar göstermek kullanıcıya "bozuk" hissi verir.
             if DVBBiometricLock.kullanilabilir().evet {
