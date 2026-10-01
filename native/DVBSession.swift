@@ -128,8 +128,9 @@ final class DVBSession: ObservableObject {
     /// `needs_phone` girişi ENGELLEMEZ — hesap açılır, telefon sonra tamamlanır;
     /// aksi hâlde Apple ile giren kullanıcı kapıda kalırdı (kılavuz 4.8 buna izin
     /// vermez: Apple ile giriş diğer yöntemlerle eşdeğer olmalı).
+    @discardableResult
     func signInWithApple(identityToken: String, nonce: String,
-                         firstName: String?, lastName: String?) async throws {
+                         firstName: String?, lastName: String?) async throws -> DVBGirisSonucu {
         var govde: [String: Any] = [
             "identity_token": identityToken,
             "nonce": nonce,
@@ -139,6 +140,14 @@ final class DVBSession: ObservableObject {
         if let lastName, !lastName.isEmpty { govde["last_name"] = lastName }
 
         let res: DVBAppleAuthResponse = try await DVBAPI.shared.post("auth/apple", body: govde)
+
+        // DVB-000280 — iki adımı açık hesapta Apple girişi de kod ister (şifreli girişle aynı karar ve ekran).
+        if res.requiresOtp == true {
+            guard res.sent != false, let anahtar = res.twoFactorToken, !anahtar.isEmpty else {
+                throw DVBError.server(200, res.message ?? "Doğrulama kodu gönderilemedi. Lütfen tekrar deneyin.")
+            }
+            return .ikinciAdim(DVBIkinciAdim(anahtar: anahtar, mesaj: res.message ?? "Doğrulama kodu gönderildi.", kanal: res.channel))
+        }
         guard let token = res.token else {
             throw DVBError.server(200, res.message ?? "Apple ile giriş yapılamadı.")
         }
@@ -149,6 +158,17 @@ final class DVBSession: ObservableObject {
         self.user = res.user
         DVBPush.kaydol()   // DVB-000109
         await hekimiYukle()
+        return .tamam
+    }
+
+    /// DVB-000280 — ikinci adım kodunu yeniden gönder (bekleyen anahtarla). Şifre gerekmez: Apple ile girende şifre yok,
+    /// şifreli girişte de parolayı ekranda tutmaya gerek kalmaz. Yeni kod + tazelenmiş anahtar döner.
+    func ikinciAdimKoduYenidenGonder(_ adim: DVBIkinciAdim) async throws -> DVBIkinciAdim {
+        let res: DVBLoginResponse = try await DVBAPI.shared.post("auth/otp/resend", body: ["two_factor_token": adim.anahtar])
+        guard res.sent != false, let anahtar = res.twoFactorToken, !anahtar.isEmpty else {
+            throw DVBError.server(200, res.message ?? "Doğrulama kodu gönderilemedi. Lütfen tekrar deneyin.")
+        }
+        return DVBIkinciAdim(anahtar: anahtar, mesaj: res.message ?? "Doğrulama kodu yeniden gönderildi.", kanal: res.channel)
     }
 
     func signOut() {

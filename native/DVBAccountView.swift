@@ -229,7 +229,8 @@ struct DVBAccountView: View {
             }
 
             Section {
-                Button("Kodu tekrar gönder") { Task { await signIn() } }
+                // DVB-000280 — bekleyen anahtarla yeniden gönderim: Apple ile girende de çalışır, şifre gerekmez.
+                Button("Kodu tekrar gönder") { Task { await koduYenidenGonder() } }
                     .disabled(busy)
                 Button(kurtarmaKoduModu ? "Doğrulama kodu gir" : "Kurtarma kodu kullan") {
                     kurtarmaKoduModu.toggle()
@@ -282,7 +283,7 @@ struct DVBAccountView: View {
             // üye ol ekranını kullanın" yazıyordu ve kullanıcı WebView'a atılıyordu —
             // 1.0 reddinin bir numaralı gerekçesi tam buydu.
             Section {
-                DVBAppleSignInButton(busy: $busy, error: $error)
+                DVBAppleSignInButton(busy: $busy, error: $error, ikinciAdim: $ikinciAdim)
             } header: {
                 Text("Ya da")
             } footer: {
@@ -322,12 +323,27 @@ struct DVBAccountView: View {
                 password = ""
                 ikinciAdim = nil
             case .ikinciAdim(let adim):
-                // DVB-000276 — parola yalnız "kodu tekrar gönder" için ekranda kalır; vazgeçince ya da girişte silinir.
+                // DVB-000280 — yeniden gönderim bekleyen anahtarla yapılıyor; parolanın ekranda kalmasına gerek yok.
+                password = ""
                 ikinciAdim = adim
                 kod = ""
             }
         } catch {
             self.error = (error as? DVBError)?.errorDescription ?? "Giriş yapılamadı."
+        }
+    }
+
+    /// DVB-000280 — kodu yeniden gönder (yeni kod + tazelenmiş anahtar).
+    private func koduYenidenGonder() async {
+        guard let adim = ikinciAdim, !busy else { return }
+        busy = true
+        error = nil
+        defer { busy = false }
+        do {
+            ikinciAdim = try await session.ikinciAdimKoduYenidenGonder(adim)
+            kod = ""
+        } catch {
+            self.error = (error as? DVBError)?.errorDescription ?? "Kod yeniden gönderilemedi."
         }
     }
 

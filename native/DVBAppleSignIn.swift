@@ -30,10 +30,17 @@ struct DVBAppleAuthResponse: Decodable {
     /// telefon adımının karşılığı. Girişi ENGELLEMEZ, yalnız uyarı gösteririz.
     let needsPhone: Bool?
     let message: String?
+    /// DVB-000280 — iki adım gerekiyorsa jeton YERİNE gelir (şifreli girişle aynı biçim).
+    let requiresOtp: Bool?
+    let sent: Bool?
+    let channel: String?
+    let twoFactorToken: String?
 
     enum CodingKeys: String, CodingKey {
-        case token, user, message
+        case token, user, message, sent, channel
         case needsPhone = "needs_phone"
+        case requiresOtp = "requires_otp"
+        case twoFactorToken = "two_factor_token"
     }
 }
 
@@ -65,6 +72,8 @@ struct DVBAppleSignInButton: View {
     @Binding var busy: Bool
     /// Hata metni üst ekranın kendi alanında gösterilir (tek yerden).
     @Binding var error: String?
+    /// DVB-000280 — iki adım gerekiyorsa üst ekran kod adımına geçer (şifreli girişle aynı ekran).
+    @Binding var ikinciAdim: DVBIkinciAdim?
 
     @State private var nonce: (ham: String, ozet: String) = DVBAppleSignIn.yeniNonce()
 
@@ -118,12 +127,15 @@ struct DVBAppleSignInButton: View {
         do {
             // Ad YALNIZCA ilk yetkilendirmede gelir; sonraki girişlerde nil olur.
             // Sunucu da bunu biliyor ve mevcut adı korur.
-            try await session.signInWithApple(
+            let sonuc = try await session.signInWithApple(
                 identityToken: jeton,
                 nonce: nonce.ozet,
                 firstName: kimlik.fullName?.givenName,
                 lastName: kimlik.fullName?.familyName
             )
+            if case .ikinciAdim(let adim) = sonuc {
+                ikinciAdim = adim
+            }
         } catch {
             self.error = (error as? DVBError)?.errorDescription ?? "Apple ile giriş yapılamadı."
         }
