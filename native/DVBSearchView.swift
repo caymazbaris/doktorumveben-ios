@@ -4,6 +4,9 @@ struct DVBSpecialty: Decodable, Identifiable, Hashable {
     let id: Int
     let name: String
     let slug: String
+    /// DVB-000281 — anasayfadaki "Popüler Branşlar"dan mı (sunucu önce bunları, sonra alfabetik sıralar).
+    /// Eski sunucu göndermez → nil; `var` + varsayılan: Decodable yine okur, kurucu çağrıları bozulmaz.
+    var popular: Bool? = nil
 }
 
 /// Tur 235 — Hekim arama. Giriş GEREKTİRMEZ; uygulamayı ilk açan (ve App Store
@@ -28,6 +31,8 @@ struct DVBSearchView: View {
     @ObservedObject private var filtre = DVBAramaFiltresi.shared
     // DVB-000269 — hekimden bağımsız talep ("Doktor Bul").
     @State private var doktorBulAcik = false
+    // DVB-000281 — tüm branşların aranabilir listesi.
+    @State private var bransListesiAcik = false
     @EnvironmentObject private var session: DVBSession
     @EnvironmentObject private var lock: DVBBiometricLock
     /// İlk açılışta konumu YALNIZ BİR KEZ kendiliğinden iste (her sekme dönüşünde sormasın).
@@ -201,14 +206,38 @@ struct DVBSearchView: View {
         secim.konumdan = true
     }
 
+    /// DVB-000281 — şeritte yalnız POPÜLER branşlar (anasayfadaki küme); 58 branşın tamamı "Branş ara" ile açılan
+    /// aranabilir listede (önce popüler, sonra Türkçe alfabetik). Listeden popüler olmayan bir branş seçilirse
+    /// şeridin başında görünür — seçili filtre ekranda kaybolmasın. Eski sunucu `popular` göndermez → ilk 12.
+    private var cipBranslari: [DVBSpecialty] {
+        let populer = specialties.filter { $0.popular == true }
+        var liste = populer.isEmpty ? Array(specialties.prefix(12)) : populer
+        if let s = selectedSpecialty, !liste.contains(where: { $0.id == s.id }) { liste.insert(s, at: 0) }
+        return liste
+    }
+
     private var specialtyChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
+                Button {
+                    bransListesiAcik = true
+                } label: {
+                    Label("Branş ara", systemImage: "magnifyingglass")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 7)
+                        .foregroundColor(DVBTheme.brand)
+                        .overlay(Capsule().stroke(DVBTheme.brand, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .disabled(specialties.isEmpty)
+                .accessibilityHint("Tüm branşlar aranabilir listede açılır")
+
                 chip(title: "Tümü", active: selectedSpecialty == nil) {
                     selectedSpecialty = nil
                     reload()
                 }
-                ForEach(specialties) { s in
+                ForEach(cipBranslari) { s in
                     chip(title: s.name, active: selectedSpecialty?.id == s.id) {
                         selectedSpecialty = selectedSpecialty?.id == s.id ? nil : s
                         reload()
@@ -217,6 +246,27 @@ struct DVBSearchView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
+        }
+        // Sayfa şeride bağlı (listeye değil): listede zaten iki `.sheet` var; aynı görünüme üçüncüsü eklenmesin.
+        .sheet(isPresented: $bransListesiAcik) {
+            NavigationView {
+                DVBAramaliListe(
+                    baslik: "Branş",
+                    secenekler: specialties.map { DVBSecenek(id: $0.id, ad: $0.name, populer: $0.popular == true) },
+                    secili: Binding(
+                        get: { selectedSpecialty?.id },
+                        set: { yeni in
+                            selectedSpecialty = specialties.first { $0.id == yeni }
+                            reload()
+                        }
+                    ),
+                    bosEtiket: "Tüm branşlar",
+                    populerBaslik: "Popüler branşlar",
+                    digerBaslik: "Diğer branşlar",
+                    vazgecDugmesi: true
+                )
+            }
+            .navigationViewStyle(.stack)
         }
     }
 

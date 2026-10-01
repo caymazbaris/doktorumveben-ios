@@ -101,25 +101,32 @@ struct DVBEkFiltreler: View {
                 Toggle("Yalnız doğrulanmış hekimler", isOn: $filtre.dogrulanmis)
             }
 
+            // DVB-000281 — uzun listeler aranabilir ve Türkçe alfabetik (72 dil, 40 ilgi alanı kaydırılarak bulunuyordu).
             if let s = secenekler {
                 Section("Daha fazla") {
                     if !s.expertises.isEmpty {
-                        Picker("İlgi alanı", selection: $filtre.ilgiAlani) {
-                            Text("Fark etmez").tag("")
-                            ForEach(s.expertises) { Text($0.name).tag($0.slug) }
-                        }
+                        DVBAramaliSecici(
+                            baslik: "İlgi alanı",
+                            secenekler: s.expertises.map { DVBSecenek(id: $0.slug, ad: $0.name) },
+                            secili: $filtre.ilgiAlani.bossaNil,
+                            bosEtiket: "Fark etmez"
+                        )
                     }
                     if !s.insurances.isEmpty {
-                        Picker("Anlaşmalı sigorta", selection: $filtre.sigorta) {
-                            Text("Fark etmez").tag("")
-                            ForEach(s.insurances) { Text($0.name).tag($0.slug) }
-                        }
+                        DVBAramaliSecici(
+                            baslik: "Anlaşmalı sigorta",
+                            secenekler: s.insurances.map { DVBSecenek(id: $0.slug, ad: $0.name) },
+                            secili: $filtre.sigorta.bossaNil,
+                            bosEtiket: "Fark etmez"
+                        )
                     }
                     if !s.languages.isEmpty {
-                        Picker("Konuştuğu dil", selection: $filtre.dil) {
-                            Text("Fark etmez").tag("")
-                            ForEach(s.languages, id: \.self) { Text($0).tag($0) }
-                        }
+                        DVBAramaliSecici(
+                            baslik: "Konuştuğu dil",
+                            secenekler: s.languages.map { DVBSecenek(id: $0, ad: $0) },
+                            secili: $filtre.dil.bossaNil,
+                            bosEtiket: "Fark etmez"
+                        )
                     }
                 }
             }

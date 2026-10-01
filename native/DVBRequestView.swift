@@ -172,11 +172,15 @@ struct DVBRequestView: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
 
-                // ⛔ Şehir sırası sunucudan gelir (City::ordered — İstanbul, İzmir, Ankara üstte); burada SIRALANMAZ.
-                Picker("Şehir", selection: $ilId) {
-                    Text("Seçin").tag(Int?.none)
-                    ForEach(iller) { Text($0.name).tag(Int?.some($0.id)) }
-                }
+                // DVB-000281 — aranabilir. Büyük şehirler (sunucunun `popular` işareti — City::ordered ile aynı küme:
+                // İstanbul, İzmir, Ankara) üstte sunucu sırasıyla; kalanı Türkçe alfabetik.
+                DVBAramaliSecici(
+                    baslik: "Şehir",
+                    secenekler: iller.map { DVBSecenek(id: $0.id, ad: $0.name, populer: $0.popular == true) },
+                    secili: $ilId,
+                    populerBaslik: "Büyük şehirler",
+                    digerBaslik: "Diğer şehirler"
+                )
             }
 
             if konu == .randevu {

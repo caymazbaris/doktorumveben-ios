@@ -77,30 +77,41 @@ struct DVBDoktorBulView: View {
                     .foregroundColor(.secondary)
             }
 
+            // DVB-000281 — aranabilir seçiciler: önce popüler branşlar / büyük şehirler, sonra Türkçe alfabetik.
             Section("Ne arıyorsunuz?") {
-                Picker("Branş", selection: $bransId) {
-                    Text("Seçin").tag(Int?.none)
-                    ForEach(branslar) { Text($0.name).tag(Int?.some($0.id)) }
-                }
-                Picker("Şehir", selection: Binding(get: { ilId }, set: { yeni in
-                    ilId = yeni
-                    ilceId = nil
-                    Task { await ilceleriYukle() }
-                })) {
-                    Text("Seçin").tag(Int?.none)
-                    ForEach(iller) { Text($0.name).tag(Int?.some($0.id)) }
-                }
+                DVBAramaliSecici(
+                    baslik: "Branş",
+                    secenekler: branslar.map { DVBSecenek(id: $0.id, ad: $0.name, populer: $0.popular == true) },
+                    secili: $bransId,
+                    populerBaslik: "Popüler branşlar",
+                    digerBaslik: "Diğer branşlar"
+                )
+                DVBAramaliSecici(
+                    baslik: "Şehir",
+                    secenekler: iller.map { DVBSecenek(id: $0.id, ad: $0.name, populer: $0.popular == true) },
+                    secili: Binding(get: { ilId }, set: { yeni in
+                        ilId = yeni
+                        ilceId = nil
+                        Task { await ilceleriYukle() }
+                    }),
+                    populerBaslik: "Büyük şehirler",
+                    digerBaslik: "Diğer şehirler"
+                )
                 if ilId != nil {
-                    Picker("İlçe", selection: $ilceId) {
-                        Text("Fark etmez").tag(Int?.none)
-                        ForEach(ilceler) { Text($0.name).tag(Int?.some($0.id)) }
-                    }
+                    DVBAramaliSecici(
+                        baslik: "İlçe",
+                        secenekler: ilceler.map { DVBSecenek(id: $0.id, ad: $0.name) },
+                        secili: $ilceId,
+                        bosEtiket: "Fark etmez"
+                    )
                 }
                 if !ilgiAlanlari.isEmpty {
-                    Picker("İlgi alanı", selection: $ilgiAlaniId) {
-                        Text("Belirtmek istemiyorum").tag(Int?.none)
-                        ForEach(ilgiAlanlari) { o in Text(o.name).tag(o.numara) }
-                    }
+                    DVBAramaliSecici(
+                        baslik: "İlgi alanı",
+                        secenekler: ilgiAlanlari.compactMap { o in o.numara.map { DVBSecenek(id: $0, ad: o.name) } },
+                        secili: $ilgiAlaniId,
+                        bosEtiket: "Belirtmek istemiyorum"
+                    )
                 }
             }
 

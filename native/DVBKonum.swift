@@ -19,6 +19,9 @@ struct DVBIl: Decodable, Identifiable, Hashable {
     let slug: String
     let lat: Double?
     let lng: Double?
+    /// DVB-000281 — üstte duran büyük şehir mi (İstanbul, İzmir, Ankara — City::ONCELIKLI_PLAKALAR).
+    /// `var` + varsayılan: Decodable yine okur, saklanan kayıttan kurulan il (aşağıda) değişmeden derlenir.
+    var popular: Bool? = nil
 }
 
 struct DVBIlce: Decodable, Identifiable, Hashable {
@@ -268,28 +271,36 @@ struct DVBFiltreSayfasi: View {
                     }
                 }
 
+                // DVB-000281 — aranabilir: büyük şehirler üstte, kalanı Türkçe alfabetik. Seçim kimlikle eşleşir
+                // (saklanan il lat/lng taşımaz; eşitlik değil kimlik — Picker'daki "seçili satırı bulamama" tuzağı yok).
                 Section("Konum") {
-                    Picker("Şehir", selection: Binding(
-                        get: { secim.il },
-                        set: { yeni in
-                            secim.il = yeni
-                            secim.ilce = nil
-                            secim.konumdan = false
-                            Task { await ilceleriYukle() }
-                        }
-                    )) {
-                        Text("Tümü").tag(DVBIl?.none)
-                        ForEach(iller) { Text($0.name).tag(DVBIl?.some($0)) }
-                    }
+                    DVBAramaliSecici(
+                        baslik: "Şehir",
+                        secenekler: iller.map { DVBSecenek(id: $0.id, ad: $0.name, populer: $0.popular == true) },
+                        secili: Binding(
+                            get: { secim.il?.id },
+                            set: { yeni in
+                                secim.il = iller.first { $0.id == yeni }
+                                secim.ilce = nil
+                                secim.konumdan = false
+                                Task { await ilceleriYukle() }
+                            }
+                        ),
+                        bosEtiket: "Tümü",
+                        populerBaslik: "Büyük şehirler",
+                        digerBaslik: "Diğer şehirler"
+                    )
 
                     if secim.il != nil {
-                        Picker("İlçe", selection: Binding(
-                            get: { secim.ilce },
-                            set: { secim.ilce = $0; secim.konumdan = false }
-                        )) {
-                            Text("Tümü").tag(DVBIlce?.none)
-                            ForEach(ilceler) { Text($0.name).tag(DVBIlce?.some($0)) }
-                        }
+                        DVBAramaliSecici(
+                            baslik: "İlçe",
+                            secenekler: ilceler.map { DVBSecenek(id: $0.id, ad: $0.name) },
+                            secili: Binding(
+                                get: { secim.ilce?.id },
+                                set: { yeni in secim.ilce = ilceler.first { $0.id == yeni }; secim.konumdan = false }
+                            ),
+                            bosEtiket: "Tümü"
+                        )
                     }
                 }
 
