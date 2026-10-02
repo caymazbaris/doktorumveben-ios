@@ -23,6 +23,11 @@ struct DVBAccountView: View {
     /// DVB-000264 — bildirimler artık sekme değil; buradan da açılır.
     @State private var bildirimlerAcik = false
 
+    /// DVB-000290 — bildirimden gelen hasta sohbeti (ya da Mesajlarım) bu sekmenin gezinmesinde açılır, web değil.
+    @ObservedObject private var gezinme = DVBGezinme.shared
+    @State private var bildirimSohbeti: Int?
+    @State private var mesajlarAcik = false
+
     var body: some View {
         NavigationView {
             Group {
@@ -31,6 +36,26 @@ struct DVBAccountView: View {
             .navigationTitle("Hesabım")
             .sheet(item: $webSheet) { item in
                 DVBWebSheet(url: item.url, title: "Doktorumveben")
+            }
+            .background(
+                VStack {
+                    NavigationLink(
+                        destination: DVBHekimSohbetView(sohbetId: bildirimSohbeti ?? 0, ad: "Mesaj", hastaModu: true),
+                        isActive: Binding(get: { bildirimSohbeti != nil }, set: { if !$0 { bildirimSohbeti = nil } })
+                    ) { EmptyView() }
+                    NavigationLink(destination: DVBHastaMesajlarView(), isActive: $mesajlarAcik) { EmptyView() }
+                }
+                .hidden()
+            )
+            .onReceive(gezinme.$hastaSohbet) { id in
+                guard let id else { return }
+                bildirimSohbeti = id
+                gezinme.hastaSohbet = nil
+            }
+            .onReceive(gezinme.$hastaMesajlar) { acik in
+                guard acik else { return }
+                mesajlarAcik = true
+                gezinme.hastaMesajlar = false
             }
         }
         .navigationViewStyle(.stack)
@@ -76,6 +101,13 @@ struct DVBAccountView: View {
             // DVB-000266 — sitedeki üye alanının bölümleri (1. adım). Kullanıcı: "hesabım kısmında da sitede üyenin
             // profilinde olan herşey olmalı".
             Section("Hesabım") {
+                // DVB-000290 — hastanın hekimleriyle yazışmaları (web /hesabim/mesajlar). Hekim kendi hasta mesajlarını
+                // Gelen Kutusu'nda görür; burada kendi (hasta olarak) yazışmaları karışmasın diye yalnız hasta hesabında.
+                if session.hekim == nil {
+                    NavigationLink(destination: DVBHastaMesajlarView()) {
+                        Label("Mesajlarım", systemImage: "bubble.left.and.bubble.right")
+                    }
+                }
                 NavigationLink(destination: DVBProfilView()) {
                     Label("Profil bilgilerim", systemImage: "person.text.rectangle")
                 }

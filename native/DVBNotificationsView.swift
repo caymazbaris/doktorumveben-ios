@@ -16,6 +16,12 @@ struct DVBNotificationsView: View {
     @State private var openURL: URL?
     /// DVB-000272 — hekim bildirimi yerli ekrana gidiyorsa.
     @State private var hedefSunumu: DVBHedefSunumu?
+    /// DVB-000290 — hasta bildirimi: hekimden gelen mesaj bu sayfanın gezinmesinde yerli sohbet olarak açılır
+    /// (web sayfası değil — iki adımlı doğrulamalı hesapta web oturumu yok, giriş sayfası çıkıyordu).
+    @State private var hastaSohbeti: Int?
+    @State private var hastaMesajlariAcik = false
+
+    @Environment(\.dismiss) private var dismiss
 
     /// DVB-000272 — hekim hesabı: panel ZİLİ kümesi (mesaj bildirimleri Gelen Kutusu'nda) + yerli hedefler.
     private var hekimModu: Bool { session.hekim != nil }
@@ -43,6 +49,16 @@ struct DVBNotificationsView: View {
                 }
             }
             .navigationTitle("Bildirimler")
+            .background(
+                VStack {
+                    NavigationLink(
+                        destination: DVBHekimSohbetView(sohbetId: hastaSohbeti ?? 0, ad: "Mesaj", hastaModu: true),
+                        isActive: Binding(get: { hastaSohbeti != nil }, set: { if !$0 { hastaSohbeti = nil } })
+                    ) { EmptyView() }
+                    NavigationLink(destination: DVBHastaMesajlarView(), isActive: $hastaMesajlariAcik) { EmptyView() }
+                }
+                .hidden()
+            )
             .toolbar {
                 if session.isLoggedIn && session.unreadCount > 0 {
                     Button("Tümünü okundu") { Task { await readAll() } }
@@ -124,9 +140,21 @@ struct DVBNotificationsView: View {
             hedefSunumu = DVBHedefSunumu(hedef: hedef)
             return
         }
-        if let raw = n.url, let url = URL(string: raw, relativeTo: DVBConfig.webBase)?.absoluteURL {
-            openURL = url
+        guard let raw = n.url, let url = URL(string: raw, relativeTo: DVBConfig.webBase)?.absoluteURL else { return }
+        // DVB-000290 — hasta: bilinen adres yerli ekranda (push ile aynı eşleme, DVBHastaHedefi). Mesaj bu sayfanın
+        // içinde açılır; sekmesi olan hedefte sayfa kapanır ve push dokunuşuyla aynı yol sekmeyi seçer.
+        if !hekimModu, let hedef = DVBHastaHedefi(url: url) {
+            switch hedef {
+            case .mesaj(let id): hastaSohbeti = id
+            case .mesajlar: hastaMesajlariAcik = true
+            case .bildirimler: break
+            case .randevular, .hesabim:
+                dismiss()
+                NotificationCenter.default.post(name: DVBPush.acilacakURL, object: url)
+            }
+            return
         }
+        openURL = url
     }
 
     private func readAll() async {

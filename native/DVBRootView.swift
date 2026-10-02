@@ -161,6 +161,13 @@ extension DVBRootView {
             case .randevular: sekme = .randevular
             case .hesabim: sekme = .hesabim
             case .bildirimler: hastaHedefi = DVBHastaHedefSunumu(hedef: hedef)
+            // DVB-000290 — hekimden gelen mesaj: Hesabım sekmesinde, Mesajlarım'dan açılmış gibi yerli sohbet.
+            case .mesaj(let id):
+                sekme = .hesabim
+                DVBGezinme.shared.hastaSohbet = id
+            case .mesajlar:
+                sekme = .hesabim
+                DVBGezinme.shared.hastaMesajlar = true
             }
             return
         }
@@ -219,6 +226,10 @@ final class DVBGezinme: ObservableObject {
     @Published var gelenBolum: DVBGelenBolum?
     /// Hastalar sekmesinde açılacak hasta kartı kimliği.
     @Published var hasta: Int?
+    /// DVB-000290 — hasta hesabı: Hesabım sekmesinde açılacak sohbet kimliği.
+    @Published var hastaSohbet: Int?
+    /// DVB-000290 — hasta hesabı: Hesabım sekmesinde Mesajlarım listesi açılsın.
+    @Published var hastaMesajlar = false
 }
 
 // MARK: - Hasta bildirim hedefleri (DVB-000109)
@@ -229,10 +240,18 @@ enum DVBHastaHedefi: Equatable {
     case randevular
     case bildirimler
     case hesabim
+    /// DVB-000290 — hekimden mesaj (`/hesabim/mesaj/{sohbet}`) ve mesaj listesi (`/hesabim/mesajlar`).
+    case mesaj(Int)
+    case mesajlar
 
     init?(url: URL) {
         let yol = url.path.hasSuffix("/") && url.path.count > 1 ? String(url.path.dropLast()) : url.path
-        if yol == "/hesabim/randevular" || yol.hasPrefix("/hesabim/randevu/") {
+        if yol.hasPrefix("/hesabim/mesaj/"), let id = Int(yol.dropFirst("/hesabim/mesaj/".count)) {
+            // Yalnız sayı: "/hesabim/mesaj/baslat/…" (POST ucu) sohbet sanılmasın.
+            self = .mesaj(id)
+        } else if yol == "/hesabim/mesajlar" {
+            self = .mesajlar
+        } else if yol == "/hesabim/randevular" || yol.hasPrefix("/hesabim/randevu/") {
             self = .randevular
         } else if yol == "/hesabim/bildirimler" {
             self = .bildirimler
@@ -262,6 +281,12 @@ struct DVBHastaHedefSayfasi: View {
             DVBNotificationsView()
         case .hesabim:
             DVBAccountView()
+        case .mesaj(let id):
+            NavigationView { DVBHekimSohbetView(sohbetId: id, ad: "Mesaj", hastaModu: true) }
+                .navigationViewStyle(.stack)
+        case .mesajlar:
+            NavigationView { DVBHastaMesajlarView() }
+                .navigationViewStyle(.stack)
         }
     }
 }

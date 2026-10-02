@@ -79,8 +79,15 @@ struct DVBHedefSunumu: Identifiable {
 struct DVBHekimSohbetView: View {
     let sohbetId: Int
     let ad: String
+    /// DVB-000290 — hasta tarafı: aynı ekran hastanın sohbetini açar (uç my/conversations, kendi balonu hastanınki).
+    /// Kullanıcı: "hasta tarafından ... mesajlara yine siteyi açıyor ... aynı şekilde doktorlardaki gibi olmalı".
+    var hastaModu: Bool = false
 
     @EnvironmentObject private var session: DVBSession
+
+    private var kok: String { hastaModu ? "my/conversations" : "my/doctor/conversations" }
+
+    private func bendenMi(_ m: DVBHekimMesaj) -> Bool { hastaModu ? m.from == "patient" : m.bendenMi }
 
     @State private var mesajlar: [DVBHekimMesaj] = []
     @State private var baslik: String?
@@ -124,14 +131,15 @@ struct DVBHekimSohbetView: View {
     }
 
     private func balon(_ m: DVBHekimMesaj) -> some View {
-        HStack {
-            if m.bendenMi { Spacer(minLength: 40) }
-            VStack(alignment: m.bendenMi ? .trailing : .leading, spacing: 3) {
+        let benden = bendenMi(m)
+        return HStack {
+            if benden { Spacer(minLength: 40) }
+            VStack(alignment: benden ? .trailing : .leading, spacing: 3) {
                 Text(m.body)
                     .font(.subheadline)
                     .padding(.horizontal, 12).padding(.vertical, 8)
-                    .background(m.bendenMi ? DVBTheme.brand : Color(.secondarySystemBackground))
-                    .foregroundColor(m.bendenMi ? .white : .primary)
+                    .background(benden ? DVBTheme.brand : Color(.secondarySystemBackground))
+                    .foregroundColor(benden ? .white : .primary)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 HStack(spacing: 4) {
                     if m.channel == "whatsapp" { Text("WhatsApp") }
@@ -139,7 +147,7 @@ struct DVBHekimSohbetView: View {
                 }
                 .font(.caption2).foregroundColor(.secondary)
             }
-            if !m.bendenMi { Spacer(minLength: 40) }
+            if !benden { Spacer(minLength: 40) }
         }
     }
 
@@ -167,12 +175,13 @@ struct DVBHekimSohbetView: View {
     private func yukle() async {
         guard let token = session.token else { return }
         do {
-            let c: DVBHekimSohbetCevabi = try await DVBAPI.shared.get("my/doctor/conversations/\(sohbetId)", token: token)
+            let c: DVBHekimSohbetCevabi = try await DVBAPI.shared.get("\(kok)/\(sohbetId)", token: token)
             mesajlar = c.messages
             baslik = c.conversation.name
             yuklendi = true
             hata = nil
-            await session.hekimiYukle()   // sunucu okundu saydı → rozetler düşsün
+            // Sunucu okundu saydı → rozetler düşsün (hekimde Gelen Kutusu rozeti, hastada zil).
+            if hastaModu { await session.okunmamisiYenile() } else { await session.hekimiYukle() }
         } catch {
             if let m = DVBError.mesaj(error) { hata = m }
         }
@@ -185,7 +194,7 @@ struct DVBHekimSohbetView: View {
         defer { gonderiliyor = false }
         do {
             let c: DVBHekimYanitCevabi = try await DVBAPI.shared.post(
-                "my/doctor/conversations/\(sohbetId)/reply", body: ["body": govde], token: token
+                "\(kok)/\(sohbetId)/reply", body: ["body": govde], token: token
             )
             mesajlar.append(c.message)
             metin = ""
@@ -193,6 +202,76 @@ struct DVBHekimSohbetView: View {
         } catch {
             if let m = DVBError.mesaj(error) { gonderimHatasi = m }
         }
+    }
+}
+
+// MARK: - Hastanın mesajları (DVB-000290)
+
+/// Hastanın sohbet listesi (Hesabım → Mesajlarım). Uç `my/conversations` hekim ucuyla aynı biçimde döner; sohbet ekranı
+/// hekimle ortak (`DVBHekimSohbetView(hastaModu: true)`).
+struct DVBHastaMesajlarView: View {
+    @EnvironmentObject private var session: DVBSession
+
+    @State private var sohbetler: [DVBHekimSohbetOzet] = []
+    @State private var yuklendi = false
+    @State private var hata: String?
+
+    var body: some View {
+        List {
+            if let hata, sohbetler.isEmpty {
+                DVBStateView(icon: "wifi.exclamationmark", title: "Mesajlar alınamadı", message: hata) {
+                    Task { await yukle() }
+                }
+            } else if yuklendi && sohbetler.isEmpty {
+                Text("Henüz mesajınız yok.").foregroundColor(.secondary)
+            } else if !yuklendi {
+                ProgressView().frame(maxWidth: .infinity)
+            } else {
+                ForEach(sohbetler) { s in
+                    NavigationLink(destination: DVBHekimSohbetView(sohbetId: s.id, ad: s.name ?? "Hekim", hastaModu: true)) {
+                        satir(s)
+                    }
+                }
+            }
+        }
+        .navigationTitle("Mesajlarım")
+        .refreshable { await yukle() }
+        .task { await yukle() }
+    }
+
+    private func satir(_ s: DVBHekimSohbetOzet) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(s.name ?? "Hekim").font(.headline).lineLimit(1)
+                if let son = s.lastMessage {
+                    Text((s.lastFrom == "patient" ? "Siz: " : "") + son)
+                        .font(.subheadline).foregroundColor(.secondary).lineLimit(2)
+                }
+            }
+            Spacer(minLength: 8)
+            VStack(alignment: .trailing, spacing: 4) {
+                if let t = s.lastMessageAt { Text(DVBSaat.gun(t, "d MMM")).font(.caption2).foregroundColor(.secondary) }
+                if s.unread > 0 {
+                    Text("\(s.unread)")
+                        .font(.caption2.weight(.bold)).foregroundColor(.white)
+                        .padding(.horizontal, 7).padding(.vertical, 2)
+                        .background(Capsule().fill(DVBTheme.brand))
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func yukle() async {
+        guard let token = session.token else { return }
+        do {
+            let l: DVBHekimSohbetListesi = try await DVBAPI.shared.get("my/conversations", token: token)
+            sohbetler = l.data
+            hata = nil
+        } catch {
+            if let m = DVBError.mesaj(error) { hata = m }
+        }
+        yuklendi = true
     }
 }
 
