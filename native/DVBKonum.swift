@@ -8,9 +8,14 @@ import CoreLocation
 // belirlesin otomatik". API il/ilçe filtresini ve il/ilçe listelerini (Tur 234) zaten sunuyordu; uygulama hiç
 // kullanmıyordu.
 //
-// ⛔ GİZLİLİK: yalnız YAKLAŞIK konum istenir (`kCLLocationAccuracyReduced`). Koordinat cihazdan ÇIKMAZ:
-// Apple'ın ters kodlamasıyla il/ilçe ADINA çevrilir, sunucuya yalnız il/ilçe filtresi gider (kullanıcının elle de
-// seçebildiği bilgi). Seçim yalnız bu cihazda saklanır. App Store gizlilik etiketi bu yüzden değişmez.
+// ⛔ GİZLİLİK: koordinat SUNUCUYA GİTMEZ: Apple'ın ters kodlamasıyla il/ilçe ADINA çevrilir, sunucuya yalnız
+// il/ilçe filtresi gider (kullanıcının elle de seçebildiği bilgi). Seçim yalnız bu cihazda saklanır. App Store
+// gizlilik etiketi bu yüzden değişmez.
+//
+// ⚠ DVB-000264 (2 Eki 2026, TestFlight 37 doğrulaması) — TAM KONUM İSTENİR. Önce yalnız yaklaşık konum
+// (`kCLLocationAccuracyReduced`) isteniyordu; iOS noktayı birkaç km kaydırdığı için Konak'taki kullanıcıya komşu
+// ilçe Karabağlar seçildi. Kullanıcı: "konum konaktayım ama karabağlar çekiyor". İlçe için 100 m yeter. Kullanıcı
+// "Kesin Konum"u kapatmışsa iOS yine yaklaşık verir; filtre sayfası bunu söyler (`kesinKapali`).
 // ═══════════════════════════════════════════════════════════════════════════════
 
 struct DVBIl: Decodable, Identifiable, Hashable {
@@ -119,10 +124,15 @@ final class DVBKonum: NSObject, ObservableObject, CLLocationManagerDelegate {
         durum = y.authorizationStatus
         super.init()
         yonetici.delegate = self
-        yonetici.desiredAccuracy = kCLLocationAccuracyReduced
+        yonetici.desiredAccuracy = kCLLocationAccuracyHundredMeters
     }
 
     var reddedildi: Bool { durum == .denied || durum == .restricted }
+
+    /// Kullanıcı bu uygulama için "Kesin Konum"u kapatmış: iOS yaklaşık konum verir, ilçe komşu ilçe çıkabilir.
+    var kesinKapali: Bool {
+        (durum == .authorizedWhenInUse || durum == .authorizedAlways) && yonetici.accuracyAuthorization == .reducedAccuracy
+    }
 
     func konumAl() async -> CLLocation? {
         if reddedildi || bekleyen != nil { return nil }
@@ -266,8 +276,10 @@ struct DVBFiltreSayfasi: View {
                 } footer: {
                     if let konumHatasi {
                         Text(konumHatasi).foregroundColor(.red)
+                    } else if konum.kesinKapali {
+                        Text("Kesin Konum kapalı olduğu için ilçe yanlış çıkabilir. Ayarlar > Doktorum Ve Ben > Konum > Kesin Konum'u açabilir ya da ilçeyi aşağıdan seçebilirsiniz.")
                     } else {
-                        Text("Yaklaşık konumunuzdan il ve ilçe bulunur. Konumunuz kaydedilmez, cihazınızdan çıkmaz.")
+                        Text("Konumunuzdan il ve ilçe bulunur. Konumunuz saklanmaz; sunucumuza yalnız il ve ilçe gider.")
                     }
                 }
 

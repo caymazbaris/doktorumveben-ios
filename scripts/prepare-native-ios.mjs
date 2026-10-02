@@ -182,9 +182,10 @@ const usageKeys = {
   // Tur 230 — "Yakınımdakiler": WKWebView'daki geolocation çağrısı bu anahtar OLMADAN
   // iOS'ta sessizce reddedilir (uygulama içinde buton hiç çalışmaz).
   // DVB-000264 — yerel arama ekranı da artık konum istiyor (il/ilçe otomatik). Metin NE için kullanıldığını ve
-  // konumun cihazdan çıkmadığını söyler (App Review 5.1.1: amaç açık yazılmalı).
+  // konumun saklanmadığını söyler (App Review 5.1.1: amaç açık yazılmalı). 2 Eki 2026: yaklaşık konum komşu ilçeyi
+  // veriyordu → TAM konum isteniyor; "yaklaşık" sözcüğü bu yüzden metinden çıktı.
   NSLocationWhenInUseUsageDescription:
-    'Bulunduğunuz il ve ilçedeki hekimleri gösterebilmek için yaklaşık konumunuz kullanılır. Konumunuz kaydedilmez ve cihazınızdan paylaşılmaz.',
+    'Bulunduğunuz il ve ilçedeki hekimleri gösterebilmek için konumunuz kullanılır. Konumunuz saklanmaz; sunucumuza yalnız il ve ilçe bilgisi gider.',
   // Tur 238 — Randevuyu telefonun KENDİ takvimine yazma (DVBCalendarKit).
   // iOS 17 takvim iznini ikiye böldü: yalnız-yazma anahtarı olmadan iOS 17+'ta
   // izin diyaloğu HİÇ açılmaz; eski anahtar da iOS 16 ve altı için gerekli.
