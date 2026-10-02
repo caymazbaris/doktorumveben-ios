@@ -155,6 +155,10 @@ struct DVBHekimHastalarView: View {
     @State private var yukleniyor = false
     @State private var hata: String?
 
+    /// DVB-000109 — bildirimden gelen hasta kartı bu sekmenin kendi gezinmesinde açılır.
+    @ObservedObject private var gezinme = DVBGezinme.shared
+    @State private var bildirimHastasi: Int?
+
     var body: some View {
         NavigationView {
             List {
@@ -184,6 +188,19 @@ struct DVBHekimHastalarView: View {
             .searchable(text: $arama, placement: .navigationBarDrawer(displayMode: .always), prompt: "Ad, telefon veya hasta no")
             .refreshable { await yenile() }
             .navigationTitle("Hastalarım")
+            // DVB-000109 — bildirimden gelen hasta kartı: listeden dokunulmuş gibi bu yığına itilir.
+            .background(
+                NavigationLink(
+                    destination: DVBHekimHastaKartView(hastaId: bildirimHastasi ?? 0, ad: "Hasta"),
+                    isActive: Binding(get: { bildirimHastasi != nil }, set: { if !$0 { bildirimHastasi = nil } })
+                ) { EmptyView() }
+                .hidden()
+            )
+            .onReceive(gezinme.$hasta) { id in
+                guard let id else { return }
+                bildirimHastasi = id
+                gezinme.hasta = nil
+            }
             // Yazarken her harfte istek atılmasın: 350 ms bekle; yeni harf gelirse önceki görev iptal olur.
             .task(id: arama) {
                 try? await Task.sleep(nanoseconds: arama.isEmpty ? 0 : 350_000_000)
@@ -481,6 +498,10 @@ struct DVBHekimTaleplerView: View {
     @State private var hata: String?
     @State private var yanitlanan: DVBHekimSoru?
 
+    /// DVB-000109 — bildirimden gelen sohbet bu sekmenin kendi gezinmesinde açılır (ayrı sayfa değil).
+    @ObservedObject private var gezinme = DVBGezinme.shared
+    @State private var bildirimSohbeti: Int?
+
     private var sorularAcik: Bool { session.hekim?.sorularAcik ?? false }
     private var mesajlarAcik: Bool { session.hekim?.mesajlarAcik ?? false }
 
@@ -535,8 +556,31 @@ struct DVBHekimTaleplerView: View {
                 DVBHekimYanitFormu(soru: soru) { Task { await yukle() } }
                     .environmentObject(session)
             }
+            // DVB-000109 — bildirimden gelen sohbet: listeden dokunulmuş gibi bu yığına itilir (geri tuşu Gelen Kutusu'na).
+            .background(
+                NavigationLink(
+                    destination: DVBHekimSohbetView(sohbetId: bildirimSohbeti ?? 0, ad: bildirimSohbetAdi),
+                    isActive: Binding(get: { bildirimSohbeti != nil }, set: { if !$0 { bildirimSohbeti = nil } })
+                ) { EmptyView() }
+                .hidden()
+            )
+            .onReceive(gezinme.$gelenBolum) { b in
+                guard let b else { return }
+                secilen = b
+                gezinme.gelenBolum = nil
+            }
+            .onReceive(gezinme.$sohbet) { id in
+                guard let id else { return }
+                secilen = .mesajlar
+                bildirimSohbeti = id
+                gezinme.sohbet = nil
+            }
         }
         .navigationViewStyle(.stack)
+    }
+
+    private var bildirimSohbetAdi: String {
+        sohbetler.first(where: { $0.id == bildirimSohbeti })?.name ?? "Mesaj"
     }
 
     private var okunmamisMesaj: Int { session.hekim?.unreadMessages ?? 0 }

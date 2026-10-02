@@ -23,6 +23,9 @@ struct DVBRootView: View {
     /// DVB-000109 (2 Eki 2026) — hasta hesabında da bilinen adresler yerli ekranda açılır.
     @State private var hastaHedefi: DVBHastaHedefSunumu?
 
+    /// DVB-000109 — seçili sekme. Bildirim hedefi AYRI SAYFADA değil, ilgili sekmenin kendi gezinmesinde açılır.
+    @State private var sekme: DVBSekme = .ara
+
     var body: some View {
         // Tur 241 — CI'da mağaza görüntüsü alınırken kök devralınır (bkz. DVBScreenshot.swift).
         // Argüman yalnız Codemagic'ten gelir; normal kullanımda bu dal HİÇ çalışmaz.
@@ -34,17 +37,19 @@ struct DVBRootView: View {
     }
 
     private var sekmeler: some View {
-        TabView {
+        TabView(selection: $sekme) {
             // DVB-000267 — hekim hesabı: ilk sekme kendi ajandası. Hasta "Randevularım" hekimde anlamsız
             // (hekimin kendi hasta randevusu yoksa boş liste) — onun yerine Ajanda gelir.
             if let hekim = session.hekim {
                 DVBHekimAjandaView()
                     .tabItem { Label("Ajanda", systemImage: "calendar.badge.clock") }
+                    .tag(DVBSekme.ajanda)
 
                 // DVB-000270 — sekmeler sunucunun `features` bilgisine göre (muhasebe görünümünde hasta bölümü yok).
                 if hekim.hastalarAcik {
                     DVBHekimHastalarView()
                         .tabItem { Label("Hastalar", systemImage: "person.2") }
+                        .tag(DVBSekme.hastalar)
                 }
 
                 // DVB-000272 — "Talepler" → "Gelen Kutusu" (Mesajlar · İptaller · Sorular); 5 sekme sınırı yüzünden Mesajlar
@@ -52,11 +57,13 @@ struct DVBRootView: View {
                 DVBHekimTaleplerView()
                     .tabItem { Label("Gelen Kutusu", systemImage: "tray") }
                     .badge((hekim.unreadMessages ?? 0) + (hekim.pendingCancels ?? 0))
+                    .tag(DVBSekme.gelenKutusu)
 
                 // DVB-000271 — web'deki Ödeme Linki / Tahsilatlarım ile aynı kapı (`features.payments`).
                 if hekim.odemelerAcik {
                     DVBHekimTahsilatView()
                         .tabItem { Label("Tahsilat", systemImage: "creditcard") }
+                        .tag(DVBSekme.tahsilat)
                 }
             }
 
@@ -65,11 +72,13 @@ struct DVBRootView: View {
             if !(session.hekim?.odemelerAcik ?? false) || !(session.hekim?.hastalarAcik ?? false) {
                 DVBSearchView()
                     .tabItem { Label("Ara", systemImage: "magnifyingglass") }
+                    .tag(DVBSekme.ara)
             }
 
             if session.hekim == nil {
                 DVBAppointmentsView()
                     .tabItem { Label("Randevularım", systemImage: "calendar") }
+                    .tag(DVBSekme.randevular)
             }
 
             // DVB-000264 — Bildirimler sekmesi kaldırıldı (kullanıcı: "altta bildirimler sekmesi çok yersiz").
@@ -77,6 +86,11 @@ struct DVBRootView: View {
 
             DVBAccountView()
                 .tabItem { Label("Hesabım", systemImage: "person.crop.circle") }
+                .tag(DVBSekme.hesabim)
+        }
+        // Hekim modu açılınca/kapanınca seçili sekme o moddaki ilk sekmeye geçer (seçim kaybolan sekmede kalmasın).
+        .onChange(of: session.hekim != nil) { hekimMi in
+            sekme = hekimMi ? .ajanda : .ara
         }
         .tint(DVBTheme.brand)
         // DVB-000109 — üçüncü sayfa da AYRI katmanda (aynı görünüme iki `sheet` eski iOS'ta birini susturuyordu).
@@ -126,7 +140,7 @@ extension DVBRootView {
         // DVB-000109 — sunucu hedefi payload'da gönderdiyse doğrudan yerli ekran. Hedef yalnız hekim adreslerinde
         // (/panel/...) konur; hekim modu henüz yüklenmemiş olsa da (soğuk açılış) oturum varsa açılır.
         if let hedef, session.isLoggedIn {
-            pushHedefi = DVBHedefSunumu(hedef: hedef)
+            hekimHedefineGit(hedef)
             return
         }
         if session.hekim != nil, let token = session.token,
@@ -135,18 +149,76 @@ extension DVBRootView {
                guard let raw = n.url, let adres = URL(string: raw, relativeTo: DVBConfig.webBase) else { return false }
                return adres.path == url.path
            })?.target {
-            pushHedefi = DVBHedefSunumu(hedef: hedef)
+            hekimHedefineGit(hedef)
             return
         }
         // DVB-000109 — Kullanıcı (2 Eki 2026): "bildirimde mesaj içeriği de gönder ona tıklayınca onla ilgili yere
         // gitsin". Hasta bildirimi web sayfası açıyordu; iki adımlı doğrulaması açık hesapta oturum köprüsü bilerek
         // açılmadığı için sayfa giriş ekranına düşüyor, içerik görünmüyordu. Bilinen adres yerli ekranda açılır.
         if session.hekim == nil, let hedef = DVBHastaHedefi(url: url) {
-            hastaHedefi = DVBHastaHedefSunumu(hedef: hedef)
+            // Sekmesi olan hedef kendi sekmesinde açılır; bildirim listesinin sekmesi yok → sayfa.
+            switch hedef {
+            case .randevular: sekme = .randevular
+            case .hesabim: sekme = .hesabim
+            case .bildirimler: hastaHedefi = DVBHastaHedefSunumu(hedef: hedef)
+            }
             return
         }
         pushAdresi = DVBIdentifiableURL(url: url)
     }
+
+    /// DVB-000109 — Kullanıcı (2 Eki 2026): "yine ayrı sayfa gibi açıyor doğrudan uygulamanın altındaki gelen kutusu
+    /// tıkladığımdaki gibi görünmüyor". Hekim hedefi artık İLGİLİ SEKMEYE geçip o sekmenin gezinmesinde açılır (geri tuşu,
+    /// sekme çubuğu aynı). Sekme bu hesapta yoksa (özellik kapalı) ya da hekim modu henüz yüklenmediyse eski davranış: sayfa.
+    @MainActor
+    func hekimHedefineGit(_ hedef: DVBHekimHedef) {
+        guard let hekim = session.hekim else {
+            pushHedefi = DVBHedefSunumu(hedef: hedef)
+            return
+        }
+        let gezinme = DVBGezinme.shared
+        switch hedef.screen {
+        case "conversation":
+            sekme = .gelenKutusu
+            gezinme.gelenBolum = .mesajlar
+            gezinme.sohbet = hedef.id
+        case "messages":
+            sekme = .gelenKutusu
+            gezinme.gelenBolum = .mesajlar
+        case "questions":
+            sekme = .gelenKutusu
+            gezinme.gelenBolum = .sorular
+        case "patient" where hekim.hastalarAcik:
+            sekme = .hastalar
+            gezinme.hasta = hedef.id
+        case "payments" where hekim.odemelerAcik:
+            sekme = .tahsilat
+        case "agenda":
+            sekme = .ajanda
+        default:
+            pushHedefi = DVBHedefSunumu(hedef: hedef)
+        }
+    }
+}
+
+// MARK: - Sekmeler ve bildirimden gezinme (DVB-000109)
+
+enum DVBSekme: Hashable {
+    case ajanda, hastalar, gelenKutusu, tahsilat, ara, randevular, hesabim
+}
+
+/// Bildirimden gelen hedefin sekme İÇİNDE açılması için ortak istek kutusu. Kök görünüm sekmeyi seçip isteği yazar;
+/// sekmedeki ekran isteği okuyup kendi gezinme yığınında açar ve isteği siler (bir kez açılır).
+@MainActor
+final class DVBGezinme: ObservableObject {
+    static let shared = DVBGezinme()
+
+    /// Gelen Kutusu'nda açılacak sohbet kimliği.
+    @Published var sohbet: Int?
+    /// Gelen Kutusu'nda seçilecek bölüm.
+    @Published var gelenBolum: DVBGelenBolum?
+    /// Hastalar sekmesinde açılacak hasta kartı kimliği.
+    @Published var hasta: Int?
 }
 
 // MARK: - Hasta bildirim hedefleri (DVB-000109)
