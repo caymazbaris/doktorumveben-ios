@@ -70,6 +70,19 @@ enum DVBPush {
         guard let ham = userInfo["url"] as? String, !ham.isEmpty else { return nil }
         return URL(string: ham, relativeTo: DVBConfig.webBase)?.absoluteURL
     }
+
+    /// DVB-000109 (2 Eki 2026) — sunucunun payload'a koyduğu YERLİ hedef (hekim bildirimi: sohbet, ajanda, sorular,
+    /// hasta kartı, tahsilat). Eşleme sunucuda (HekimMesajApiController::hedef); istemcide ikinci kopyası yok.
+    /// Kullanıcı: "bildirime tıklayınca browserda açıyor uygulamanın içinde" — mesaj bildirimi zil listesinde olmadığı
+    /// için hedef bulunamıyor, sohbet web sayfası olarak açılıyordu.
+    static func hedef(_ userInfo: [AnyHashable: Any]) -> DVBHekimHedef? {
+        guard let ham = userInfo["target"] as? [String: Any], let ekran = ham["screen"] as? String else { return nil }
+        return DVBHekimHedef(screen: ekran, id: (ham["id"] as? NSNumber)?.intValue)
+    }
+
+    /// Soğuk açılışta dokunuş, kök görünüm dinlemeye başlamadan gelebilir: son dokunuş burada bekler, kök görünüm
+    /// oturumu kurduktan sonra alır (DVBRootView). Dinleyen varsa olay zaten yayınlanır ve bekleyen silinir.
+    static var bekleyenDokunus: [AnyHashable: Any]?
 }
 
 /// UNUserNotificationCenter delegesi: uygulama ön plandayken de göster; dokununca adresi yayınla.
@@ -93,8 +106,10 @@ final class DVBPushDelegesi: NSObject, UNUserNotificationCenterDelegate {
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        if let url = DVBPush.adres(response.notification.request.content.userInfo) {
-            NotificationCenter.default.post(name: DVBPush.acilacakURL, object: url)
+        let bilgi = response.notification.request.content.userInfo
+        if let url = DVBPush.adres(bilgi) {
+            DVBPush.bekleyenDokunus = bilgi
+            NotificationCenter.default.post(name: DVBPush.acilacakURL, object: url, userInfo: bilgi)
         }
         completionHandler()
     }

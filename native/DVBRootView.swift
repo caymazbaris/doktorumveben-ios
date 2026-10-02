@@ -85,10 +85,20 @@ struct DVBRootView: View {
         }
         .environmentObject(session)
         .environmentObject(lock)
-        .task { await session.restore() }
-        // DVB-000109 — bildirime dokunulunca payload'daki adres açılır.
+        .task {
+            await session.restore()
+            // DVB-000109 — soğuk açılışta bekleyen dokunuş: oturum (ve hekim modu) kurulduktan SONRA açılır.
+            if let bilgi = DVBPush.bekleyenDokunus, let url = DVBPush.adres(bilgi) {
+                DVBPush.bekleyenDokunus = nil
+                await pushAc(url, hedef: DVBPush.hedef(bilgi))
+            }
+        }
+        // DVB-000109 — bildirime dokunulunca payload'daki hedef (yoksa adres) açılır.
         .onReceive(NotificationCenter.default.publisher(for: DVBPush.acilacakURL)) { bildirim in
-            if let url = bildirim.object as? URL { Task { await pushAc(url) } }
+            guard let url = bildirim.object as? URL else { return }
+            DVBPush.bekleyenDokunus = nil
+            let hedef = bildirim.userInfo.flatMap { DVBPush.hedef($0) }
+            Task { await pushAc(url, hedef: hedef) }
         }
         .sheet(item: $pushAdresi) { DVBWebSheet(url: $0.url, title: "Doktorum Ve Ben") }
         // DVB-000111 — kilit perdesi EN DIŞTA: sekme çubuğu dahil her şeyi örtmeli.
@@ -112,7 +122,13 @@ extension DVBRootView {
     /// DVB-000272 — push adresini aç. Hekim hesabında hedef SUNUCUNUN eşlemesinden (bildirim listesindeki aynı adres)
     /// bulunur — istemcide adres→ekran kuralının ikinci kopyası yok. Bulunamazsa eskisi gibi web sayfası.
     @MainActor
-    func pushAc(_ url: URL) async {
+    func pushAc(_ url: URL, hedef: DVBHekimHedef? = nil) async {
+        // DVB-000109 — sunucu hedefi payload'da gönderdiyse doğrudan yerli ekran. Hedef yalnız hekim adreslerinde
+        // (/panel/...) konur; hekim modu henüz yüklenmemiş olsa da (soğuk açılış) oturum varsa açılır.
+        if let hedef, session.isLoggedIn {
+            pushHedefi = DVBHedefSunumu(hedef: hedef)
+            return
+        }
         if session.hekim != nil, let token = session.token,
            let sayfa: DVBNotificationPage = try? await DVBAPI.shared.get("my/doctor/notifications", query: ["limit": "30"], token: token),
            let hedef = sayfa.data.first(where: { n in
