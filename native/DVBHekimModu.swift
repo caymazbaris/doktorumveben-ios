@@ -200,6 +200,10 @@ struct DVBHekimAjandaView: View {
     @State private var randevular: [DVBHekimRandevu] = []
     @State private var yukleniyor = false
     @State private var hata: String?
+    /// DVB-000289 — "Yeni randevu" formu (muhasebe görünümü randevu ekleyemez → düğme de yok).
+    @State private var yeniRandevuAcik = false
+
+    private var ekleyebilir: Bool { session.hekim.map { $0.readOnly != true } ?? false }
 
     private var hafta: [Date] {
         (0..<7).compactMap { DVBSaat.takvim.date(byAdding: .day, value: $0, to: haftaBasi) }
@@ -238,6 +242,11 @@ struct DVBHekimAjandaView: View {
                         DVBStateView(icon: "wifi.exclamationmark", title: "Ajanda alınamadı", message: hata) { Task { await yukle() } }
                     } else if gununRandevulari.isEmpty {
                         Text("Bu gün randevu yok.").foregroundColor(.secondary)
+                        if ekleyebilir && seciliGun >= DVBSaat.takvim.startOfDay(for: Date()) {
+                            Button { yeniRandevuAcik = true } label: {
+                                Label("Bu güne randevu ekle", systemImage: "plus.circle")
+                            }
+                        }
                     } else {
                         ForEach(gununRandevulari) { r in
                             NavigationLink(destination: DVBHekimRandevuDetayView(randevuId: r.id, ozet: r) { Task { await yukle() } }) {
@@ -254,17 +263,30 @@ struct DVBHekimAjandaView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) { DVBZilDugmesi() }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
                     Button("Bugün") {
                         seciliGun = DVBSaat.takvim.startOfDay(for: Date())
                         haftaBasi = DVBSaat.takvim.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
                         Task { await yukle() }
+                    }
+                    if ekleyebilir {
+                        Button { yeniRandevuAcik = true } label: { Image(systemName: "plus") }
+                            .accessibilityLabel("Yeni randevu")
                     }
                 }
             }
             .task { await yukle() }
         }
         .navigationViewStyle(.stack)
+        .sheet(isPresented: $yeniRandevuAcik) {
+            DVBHekimRandevuEkleView(gun: seciliGun) { g in
+                // Eklenen randevunun günü ajandada seçilsin: hekim kaydı hemen listede görür.
+                seciliGun = DVBSaat.takvim.startOfDay(for: g)
+                haftaBasi = DVBSaat.takvim.dateInterval(of: .weekOfYear, for: g)?.start ?? g
+                Task { await yukle() }
+            }
+            .environmentObject(session)
+        }
     }
 
     private func ozet(_ baslik: String, _ deger: String, _ simge: String) -> some View {
