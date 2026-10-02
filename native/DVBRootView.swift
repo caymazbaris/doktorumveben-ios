@@ -20,6 +20,9 @@ struct DVBRootView: View {
     /// DVB-000272 — hekim hesabında push dokunuşu yerli ekrana gidebilir.
     @State private var pushHedefi: DVBHedefSunumu?
 
+    /// DVB-000109 (2 Eki 2026) — hasta hesabında da bilinen adresler yerli ekranda açılır.
+    @State private var hastaHedefi: DVBHastaHedefSunumu?
+
     var body: some View {
         // Tur 241 — CI'da mağaza görüntüsü alınırken kök devralınır (bkz. DVBScreenshot.swift).
         // Argüman yalnız Codemagic'ten gelir; normal kullanımda bu dal HİÇ çalışmaz.
@@ -76,6 +79,10 @@ struct DVBRootView: View {
                 .tabItem { Label("Hesabım", systemImage: "person.crop.circle") }
         }
         .tint(DVBTheme.brand)
+        // DVB-000109 — üçüncü sayfa da AYRI katmanda (aynı görünüme iki `sheet` eski iOS'ta birini susturuyordu).
+        .sheet(item: $hastaHedefi) { s in
+            DVBHastaHedefSayfasi(hedef: s.hedef).environmentObject(session).environmentObject(lock)
+        }
         .environmentObject(session)
         .environmentObject(lock)
         .task { await session.restore() }
@@ -115,7 +122,59 @@ extension DVBRootView {
             pushHedefi = DVBHedefSunumu(hedef: hedef)
             return
         }
+        // DVB-000109 — Kullanıcı (2 Eki 2026): "bildirimde mesaj içeriği de gönder ona tıklayınca onla ilgili yere
+        // gitsin". Hasta bildirimi web sayfası açıyordu; iki adımlı doğrulaması açık hesapta oturum köprüsü bilerek
+        // açılmadığı için sayfa giriş ekranına düşüyor, içerik görünmüyordu. Bilinen adres yerli ekranda açılır.
+        if session.hekim == nil, let hedef = DVBHastaHedefi(url: url) {
+            hastaHedefi = DVBHastaHedefSunumu(hedef: hedef)
+            return
+        }
         pushAdresi = DVBIdentifiableURL(url: url)
+    }
+}
+
+// MARK: - Hasta bildirim hedefleri (DVB-000109)
+
+/// Hasta bildirimlerinin adresi → uygulamanın yerli ekranı. Sunucu adresleri `route()` ile tam adres gönderir
+/// (https://doktorumveben.com/hesabim/randevular); yalnız YOL bakılır. Eşlenmeyen adres web sayfası olarak açılır.
+enum DVBHastaHedefi: Equatable {
+    case randevular
+    case bildirimler
+    case hesabim
+
+    init?(url: URL) {
+        let yol = url.path.hasSuffix("/") && url.path.count > 1 ? String(url.path.dropLast()) : url.path
+        if yol == "/hesabim/randevular" || yol.hasPrefix("/hesabim/randevu/") {
+            self = .randevular
+        } else if yol == "/hesabim/bildirimler" {
+            self = .bildirimler
+        } else if ["/hesabim", "/hesabim/profil", "/hesabim/odemeler", "/hesabim/yakinlar", "/hesabim/yorumlar"].contains(yol) {
+            self = .hesabim
+        } else {
+            return nil
+        }
+    }
+}
+
+/// `sheet(item:)` için kimlik: aynı hedef art arda iki bildirimde de açılabilsin.
+struct DVBHastaHedefSunumu: Identifiable {
+    let id = UUID()
+    let hedef: DVBHastaHedefi
+}
+
+/// Bildirimden açılan yerli ekran. Her ekran kendi gezinme çubuğunu taşır; sayfa aşağı kaydırılarak kapanır.
+struct DVBHastaHedefSayfasi: View {
+    let hedef: DVBHastaHedefi
+
+    var body: some View {
+        switch hedef {
+        case .randevular:
+            DVBAppointmentsView()
+        case .bildirimler:
+            DVBNotificationsView()
+        case .hesabim:
+            DVBAccountView()
+        }
     }
 }
 
