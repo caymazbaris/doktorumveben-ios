@@ -27,6 +27,8 @@ struct DVBAccountView: View {
     @ObservedObject private var gezinme = DVBGezinme.shared
     @State private var bildirimSohbeti: Int?
     @State private var mesajlarAcik = false
+    /// DVB-000286 — takvim hatası bildirimi hekimin takvim ekranını bu sekmede açar.
+    @State private var takvimAcik = false
 
     var body: some View {
         NavigationView {
@@ -44,9 +46,15 @@ struct DVBAccountView: View {
                         isActive: Binding(get: { bildirimSohbeti != nil }, set: { if !$0 { bildirimSohbeti = nil } })
                     ) { EmptyView() }
                     NavigationLink(destination: DVBHastaMesajlarView(), isActive: $mesajlarAcik) { EmptyView() }
+                    NavigationLink(destination: DVBHekimTakvimView(), isActive: $takvimAcik) { EmptyView() }
                 }
                 .hidden()
             )
+            .onReceive(gezinme.$takvim) { acik in
+                guard acik else { return }
+                takvimAcik = true
+                gezinme.takvim = false
+            }
             .onReceive(gezinme.$hastaSohbet) { id in
                 guard let id else { return }
                 bildirimSohbeti = id
@@ -122,6 +130,15 @@ struct DVBAccountView: View {
                 }
                 NavigationLink(destination: DVBOdemelerView()) {
                     Label("Ödemelerim", systemImage: "creditcard")
+                }
+            }
+
+            // DVB-000286 — hekimin takvim bağlantıları (Apple Takvim aboneliği, Google, durum). Muhasebe görünümünde yok.
+            if let hekim = session.hekim, hekim.readOnly != true {
+                Section("Hekim") {
+                    NavigationLink(destination: DVBHekimTakvimView()) {
+                        Label("Takvim bağlantıları", systemImage: "calendar.badge.clock")
+                    }
                 }
             }
 

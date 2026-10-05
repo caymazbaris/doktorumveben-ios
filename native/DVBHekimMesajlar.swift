@@ -294,6 +294,8 @@ struct DVBHekimHedefSayfasi: View {
             DVBHekimTaleplerView(baslangic: .sorular)
         case "payments":
             DVBHekimTahsilatView()
+        case "calendar":
+            kapatilabilir { DVBHekimTakvimView() }
         default:
             DVBHekimAjandaView()
         }

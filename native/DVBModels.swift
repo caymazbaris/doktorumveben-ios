@@ -134,9 +134,16 @@ struct DVBNotification: Decodable, Identifiable {
     let createdAt: Date?
     /// DVB-000272 — yalnız hekim bildirim ucunda gelir: uygulamadaki yerli hedef (yoksa web sayfası).
     let target: DVBHekimHedef?
+    /// DVB-000286 — eski + YENİ ekranlar (ör. takvim). Eski sürümler bu alanı tanımaz; bilmedikleri ekranı Ajanda'ya
+    /// düşürmesinler diye sunucu yeni ekranları yalnız burada gönderir.
+    let targetV2: DVBHekimHedef?
+
+    /// Uygulamanın açacağı hedef: önce yeni alan.
+    var hedef: DVBHekimHedef? { targetV2 ?? target }
 
     enum CodingKeys: String, CodingKey {
         case id, type, title, body, url, target
+        case targetV2 = "target_v2"
         case isRead = "is_read"
         case createdAt = "created_at"
     }

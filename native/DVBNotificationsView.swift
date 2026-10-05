@@ -136,7 +136,7 @@ struct DVBNotificationsView: View {
             }
         }
         // DVB-000272 — hekim bildirimi: bilinen hedef yerli ekranda (panel oturumu uygulamada yok).
-        if hekimModu, let hedef = n.target {
+        if hekimModu, let hedef = n.hedef {
             hedefSunumu = DVBHedefSunumu(hedef: hedef)
             return
         }
@@ -177,7 +177,7 @@ struct DVBHekimOkunduCevabi: Decodable {
 
 extension DVBNotification {
     var okunmus: DVBNotification {
-        DVBNotification(id: id, type: type, title: title, body: body, url: url, isRead: true, createdAt: createdAt, target: target)
+        DVBNotification(id: id, type: type, title: title, body: body, url: url, isRead: true, createdAt: createdAt, target: target, targetV2: targetV2)
     }
 }
 

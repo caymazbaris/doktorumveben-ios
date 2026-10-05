@@ -76,7 +76,9 @@ enum DVBPush {
     /// Kullanıcı: "bildirime tıklayınca browserda açıyor uygulamanın içinde" — mesaj bildirimi zil listesinde olmadığı
     /// için hedef bulunamıyor, sohbet web sayfası olarak açılıyordu.
     static func hedef(_ userInfo: [AnyHashable: Any]) -> DVBHekimHedef? {
-        guard let ham = userInfo["target"] as? [String: Any], let ekran = ham["screen"] as? String else { return nil }
+        // DVB-000286 — yeni ekranlar (takvim) yalnız `target_v2`de gelir; önce ona bakılır.
+        guard let ham = (userInfo["target_v2"] ?? userInfo["target"]) as? [String: Any],
+              let ekran = ham["screen"] as? String else { return nil }
         return DVBHekimHedef(screen: ekran, id: (ham["id"] as? NSNumber)?.intValue)
     }
 

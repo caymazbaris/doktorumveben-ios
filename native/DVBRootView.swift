@@ -148,7 +148,7 @@ extension DVBRootView {
            let hedef = sayfa.data.first(where: { n in
                guard let raw = n.url, let adres = URL(string: raw, relativeTo: DVBConfig.webBase) else { return false }
                return adres.path == url.path
-           })?.target {
+           })?.hedef {
             hekimHedefineGit(hedef)
             return
         }
@@ -202,6 +202,10 @@ extension DVBRootView {
             sekme = .tahsilat
         case "agenda":
             sekme = .ajanda
+        // DVB-000286 — takvim bağlantıları (takvim hatası bildirimi): Hesabım sekmesinde yerli ekran.
+        case "calendar" where hekim.readOnly != true:
+            sekme = .hesabim
+            gezinme.takvim = true
         default:
             pushHedefi = DVBHedefSunumu(hedef: hedef)
         }
@@ -230,6 +234,8 @@ final class DVBGezinme: ObservableObject {
     @Published var hastaSohbet: Int?
     /// DVB-000290 — hasta hesabı: Hesabım sekmesinde Mesajlarım listesi açılsın.
     @Published var hastaMesajlar = false
+    /// DVB-000286 — hekim hesabı: Hesabım sekmesinde takvim bağlantıları açılsın.
+    @Published var takvim = false
 }
 
 // MARK: - Hasta bildirim hedefleri (DVB-000109)
