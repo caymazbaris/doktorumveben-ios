@@ -184,6 +184,10 @@ struct DVBHekimRandevuEkleView: View {
                 DatePicker("Gün", selection: $gun, in: bugun..., displayedComponents: .date)
                     .environment(\.timeZone, DVBTime.klinik)
                     .environment(\.locale, Locale(identifier: "tr_TR"))
+                    // Kullanıcı (5 Eki 2026): "tarih seçerken takvimde tarihe bastığımda takvim kapanmıyor kapansa daha
+                    // kullanışlı olabilir". iOS'un açılır takvimi seçimde kendiliğinden kapanmaz; kimlik seçilen güne
+                    // bağlanınca gün değişince seçici yeniden kurulur ve açılır takvim kapanır (ay değiştirmek kapatmaz).
+                    .id(gun)
                 if !elleSaat { saatSecimi(s) }
                 Toggle("Saati elle gir", isOn: $elleSaat)
                 if elleSaat {
