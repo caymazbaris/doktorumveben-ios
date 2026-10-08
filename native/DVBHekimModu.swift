@@ -38,10 +38,30 @@ struct DVBHekimBilgisi: Decodable {
         let invoices: Bool?
         // DVB-000344 — fatura bilgilerim + banka hesabım.
         let billing: Bool?
+        // DVB-000345 — kalan bölümler (Klinik yönetimi ekranı).
+        let locations: Bool?
+        let insurances: Bool?
+        let bookingSettings: Bool?
+        let bookingPage: Bool?
+        let nps: Bool?
+        let reports: Bool?
+        let issues: Bool?
+        let packages: Bool?
+        let recurring: Bool?
+        let accountingSetup: Bool?
+        let incomingInvoices: Bool?
+        let staff: Bool?
+        let leads: Bool?
+        let secretaries: Bool?
 
         enum CodingKeys: String, CodingKey {
             case patients, questions, payments, messages, schedule, services, profile, accounting, invoices, billing
+            case locations, insurances, nps, reports, issues, packages, recurring, staff, leads, secretaries
             case patientRequests = "patient_requests"
+            case bookingSettings = "booking_settings"
+            case bookingPage = "booking_page"
+            case accountingSetup = "accounting_setup"
+            case incomingInvoices = "incoming_invoices"
         }
     }
 
@@ -61,6 +81,12 @@ struct DVBHekimBilgisi: Decodable {
     var muhasebeAcik: Bool { features?.accounting ?? false }
     var faturalarAcik: Bool { features?.invoices ?? false }
     var odemeFaturaBilgileriAcik: Bool { features?.billing ?? false }
+    /// DVB-000345 — "Klinik yönetimi" ekranında en az bir bölüm açık mı.
+    var yonetimAcik: Bool {
+        guard let f = features else { return false }
+        return [f.locations, f.insurances, f.bookingSettings, f.bookingPage, f.nps, f.reports, f.issues, f.packages,
+                f.recurring, f.accountingSetup, f.incomingInvoices, f.staff, f.leads, f.secretaries].contains { $0 == true }
+    }
 
     struct Hekim: Decodable {
         let id: Int

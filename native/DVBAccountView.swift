@@ -162,6 +162,13 @@ struct DVBAccountView: View {
                             Label("Faturalar", systemImage: "doc.text")
                         }
                     }
+                    // DVB-000345 — panelin kalan bölümleri tek menüde (adresler, sigortalar, ayarlar, randevu sayfası, raporlar,
+                    // paketler, sabit giderler, tanımlar, gelen faturalar, personel, sekreterler, satış adayları, sorun bildir).
+                    if hekim.yonetimAcik {
+                        NavigationLink(destination: DVBHekimYonetimView()) {
+                            Label("Klinik yönetimi", systemImage: "square.grid.2x2")
+                        }
+                    }
                     // DVB-000344 — fatura bilgilerim + banka hesabım (IBAN) tek ekranda.
                     if hekim.odemeFaturaBilgileriAcik {
                         NavigationLink(destination: DVBHekimOdemeFaturaView()) {

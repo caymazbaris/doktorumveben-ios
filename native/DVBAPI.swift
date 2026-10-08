@@ -117,8 +117,13 @@ actor DVBAPI {
     }
 
     /// DVB-000343 — ham yanıt (fatura PDF'i). Hata eşlemesi `send` ile aynı; gövde çözülmez, olduğu gibi döner.
-    func veri(_ path: String, token: String? = nil) async throws -> Data {
-        var req = URLRequest(url: DVBConfig.apiBase.appendingPathComponent(path))
+    func veri(_ path: String, query: [String: String] = [:], token: String? = nil) async throws -> Data {
+        var comps = URLComponents(url: DVBConfig.apiBase.appendingPathComponent(path), resolvingAgainstBaseURL: false)
+        if !query.isEmpty {
+            comps?.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
+        }
+        guard let url = comps?.url else { throw DVBError.decoding }
+        var req = URLRequest(url: url)
         req.httpMethod = "GET"
         if let token, !token.isEmpty {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
