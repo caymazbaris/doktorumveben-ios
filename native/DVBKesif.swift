@@ -664,8 +664,9 @@ struct DVBSacTalepView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(sonuc == nil ? "Vazgeç" : "Kapat") { dismiss() }
                 }
-                if sonuc == nil {
-                    ToolbarItem(placement: .confirmationAction) {
+                // ⚠ Araç çubuğunda öğe düzeyinde `if` iOS 16 ister (buildIf) — koşul öğenin İÇİNDE.
+                ToolbarItem(placement: .confirmationAction) {
+                    if sonuc == nil {
                         Button {
                             Task { await gonder() }
                         } label: {
