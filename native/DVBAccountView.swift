@@ -162,6 +162,12 @@ struct DVBAccountView: View {
                             Label("Faturalar", systemImage: "doc.text")
                         }
                     }
+                    // DVB-000344 — fatura bilgilerim + banka hesabım (IBAN) tek ekranda.
+                    if hekim.odemeFaturaBilgileriAcik {
+                        NavigationLink(destination: DVBHekimOdemeFaturaView()) {
+                            Label("Fatura ve banka bilgileri", systemImage: "building.columns")
+                        }
+                    }
                     if hekim.taleplerAcik {
                         NavigationLink(destination: DVBHekimTaleplerView()) {
                             Label("Hasta talepleri", systemImage: "tray.full")

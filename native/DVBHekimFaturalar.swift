@@ -190,16 +190,15 @@ struct DVBHekimFaturalarView: View {
 
     private func icerik(_ l: DVBFaturaListesi) -> some View {
         List {
-            if l.canCreate && !l.billingProfileComplete, let yol = l.billingProfilePath {
+            // DVB-000344 — fatura bilgileri artık uygulamada (banka hesabıyla aynı ekranda).
+            if l.canCreate && !l.billingProfileComplete {
                 Section {
-                    Button {
-                        Task { await DVBPanelSafari.ac(yol, openURL) }
-                    } label: {
+                    NavigationLink(destination: DVBHekimOdemeFaturaView()) {
                         Label("Fatura bilgilerinizi tamamlayın", systemImage: "exclamationmark.triangle")
                             .foregroundColor(.orange)
                     }
                 } footer: {
-                    Text("GİB'e gönderebilmek için ünvan, VKN/TCKN, vergi dairesi ve adres gerekir. Bilgiler web panelinde Safari'de açılır.")
+                    Text("GİB'e gönderebilmek için ünvan, VKN/TCKN, vergi dairesi ve adres gerekir.")
                 }
             }
 

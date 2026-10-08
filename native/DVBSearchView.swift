@@ -86,6 +86,17 @@ struct DVBSearchView: View {
                 .buttonStyle(.plain)
                 .listRowSeparator(.hidden)
 
+                // DVB-000344 — kullanıcı (9 Eki 2026): "saç ekimi ve hastaneler ile ilgili kısımları da ekle".
+                NavigationLink(destination: DVBHastanelerView()) {
+                    Label("Hastaneler", systemImage: "building.2")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .listRowSeparator(.hidden)
+                NavigationLink(destination: DVBSacEkimiView()) {
+                    Label("Saç ekimi (İzmir)", systemImage: "person.crop.circle.badge.plus")
+                        .font(.subheadline.weight(.semibold))
+                }
+
                 if loading && doctors.isEmpty {
                     ProgressView("Hekimler getiriliyor…")
                         .frame(maxWidth: .infinity, minHeight: 220)
