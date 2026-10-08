@@ -32,9 +32,13 @@ struct DVBHekimBilgisi: Decodable {
         let patientRequests: Bool?
         let schedule: Bool?
         let services: Bool?
+        // DVB-000343 — profil, muhasebe, e-Fatura.
+        let profile: Bool?
+        let accounting: Bool?
+        let invoices: Bool?
 
         enum CodingKeys: String, CodingKey {
-            case patients, questions, payments, messages, schedule, services
+            case patients, questions, payments, messages, schedule, services, profile, accounting, invoices
             case patientRequests = "patient_requests"
         }
     }
@@ -51,6 +55,9 @@ struct DVBHekimBilgisi: Decodable {
     var taleplerAcik: Bool { features?.patientRequests ?? false }
     var calismaSaatleriAcik: Bool { features?.schedule ?? false }
     var hizmetlerAcik: Bool { features?.services ?? false }
+    var profilAcik: Bool { features?.profile ?? false }
+    var muhasebeAcik: Bool { features?.accounting ?? false }
+    var faturalarAcik: Bool { features?.invoices ?? false }
 
     struct Hekim: Decodable {
         let id: Int

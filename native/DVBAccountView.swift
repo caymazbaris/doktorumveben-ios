@@ -133,10 +133,35 @@ struct DVBAccountView: View {
                 }
             }
 
+            // DVB-000343 — muhasebeci (salt okunur) hesap faturaları görür; Hekim bölümü ona kapalı olduğundan ayrı bölüm.
+            if let hekim = session.hekim, hekim.readOnly == true, hekim.faturalarAcik {
+                Section("Hekim") {
+                    NavigationLink(destination: DVBHekimFaturalarView()) {
+                        Label("Faturalar", systemImage: "doc.text")
+                    }
+                }
+            }
+
             // DVB-000286 — hekimin takvim bağlantıları (Apple Takvim aboneliği, Google, durum). Muhasebe görünümünde yok.
             // DVB-000341 — hekimin günlük işleri: hasta talepleri, çalışma saatleri ve izinler, hizmetler (sunucu bayraklarıyla).
             if let hekim = session.hekim, hekim.readOnly != true {
                 Section("Hekim") {
+                    // DVB-000343 — profil düzenleme, muhasebe, e-Fatura.
+                    if hekim.profilAcik {
+                        NavigationLink(destination: DVBHekimProfilView()) {
+                            Label("Profilim", systemImage: "person.crop.circle")
+                        }
+                    }
+                    if hekim.muhasebeAcik {
+                        NavigationLink(destination: DVBHekimMuhasebeView()) {
+                            Label("Muhasebe", systemImage: "turkishlirasign.circle")
+                        }
+                    }
+                    if hekim.faturalarAcik {
+                        NavigationLink(destination: DVBHekimFaturalarView()) {
+                            Label("Faturalar", systemImage: "doc.text")
+                        }
+                    }
                     if hekim.taleplerAcik {
                         NavigationLink(destination: DVBHekimTaleplerView()) {
                             Label("Hasta talepleri", systemImage: "tray.full")

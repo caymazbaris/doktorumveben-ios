@@ -107,6 +107,61 @@ actor DVBAPI {
         return try await send(req, token: token)
     }
 
+    /// DVB-000343 — kısmi güncelleme (hekim profili: yalnız gönderilen alan değişir). Boşaltmak için değer `NSNull()`.
+    func patch<T: Decodable>(_ path: String, body: [String: Any] = [:], token: String? = nil) async throws -> T {
+        var req = URLRequest(url: DVBConfig.apiBase.appendingPathComponent(path))
+        req.httpMethod = "PATCH"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        return try await send(req, token: token)
+    }
+
+    /// DVB-000343 — ham yanıt (fatura PDF'i). Hata eşlemesi `send` ile aynı; gövde çözülmez, olduğu gibi döner.
+    func veri(_ path: String, token: String? = nil) async throws -> Data {
+        var req = URLRequest(url: DVBConfig.apiBase.appendingPathComponent(path))
+        req.httpMethod = "GET"
+        if let token, !token.isEmpty {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: req)
+        } catch {
+            if error is CancellationError || (error as? URLError)?.code == .cancelled { throw CancellationError() }
+            if (error as? URLError)?.code == .timedOut {
+                throw DVBError.server(0, "Sunucu zamanında yanıt vermedi. Biraz sonra tekrar deneyin.")
+            }
+            throw DVBError.offline
+        }
+        switch (response as? HTTPURLResponse)?.statusCode ?? 0 {
+        case 200...299: return data
+        case 401: throw DVBError.unauthorized
+        case 403: throw DVBError.forbidden
+        case 404: throw DVBError.notFound
+        case let kod:
+            let msg = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+            throw DVBError.server(kod, msg?["message"] as? String)
+        }
+    }
+
+    /// DVB-000343 — tek dosya yükleme (multipart/form-data; hekim profil fotoğrafı).
+    func yukle<T: Decodable>(_ path: String, alan: String, dosya: Data, dosyaAdi: String, mime: String, token: String? = nil) async throws -> T {
+        let sinir = "dvb-\(UUID().uuidString)"
+        var govde = Data()
+        govde.append("--\(sinir)\r\n".data(using: .utf8)!)
+        govde.append("Content-Disposition: form-data; name=\"\(alan)\"; filename=\"\(dosyaAdi)\"\r\n".data(using: .utf8)!)
+        govde.append("Content-Type: \(mime)\r\n\r\n".data(using: .utf8)!)
+        govde.append(dosya)
+        govde.append("\r\n--\(sinir)--\r\n".data(using: .utf8)!)
+
+        var req = URLRequest(url: DVBConfig.apiBase.appendingPathComponent(path))
+        req.httpMethod = "POST"
+        req.setValue("multipart/form-data; boundary=\(sinir)", forHTTPHeaderField: "Content-Type")
+        req.httpBody = govde
+        return try await send(req, token: token)
+    }
+
     /// DVB-000109 — gövdeli DELETE (cihaz jetonunu bırakma: sunucu jetonu gövdeden okur).
     func delete<T: Decodable>(_ path: String, body: [String: Any] = [:], token: String? = nil) async throws -> T {
         var req = URLRequest(url: DVBConfig.apiBase.appendingPathComponent(path))
