@@ -101,7 +101,7 @@ private struct DVBTalepIslemCevabi: Decodable {
     let message: String?
 }
 
-struct DVBHekimTaleplerView: View {
+struct DVBHastaTalepleriView: View {
     @EnvironmentObject private var session: DVBSession
     @Environment(\.openURL) private var openURL
 

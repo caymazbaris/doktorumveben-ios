@@ -169,7 +169,7 @@ struct DVBAccountView: View {
                         }
                     }
                     if hekim.taleplerAcik {
-                        NavigationLink(destination: DVBHekimTaleplerView()) {
+                        NavigationLink(destination: DVBHastaTalepleriView()) {
                             Label("Hasta talepleri", systemImage: "tray.full")
                         }
                     }
