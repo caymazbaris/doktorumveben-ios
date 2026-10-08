@@ -33,7 +33,7 @@ workflows:
         # "CFBundleShortVersionString [1.2] … must contain a higher version than that of the previously
         # approved version [1.2]". 1.2 mağazada YAYINDA olduğu için aynı sürüm numarasıyla yükleme kabul
         # edilmiyor. Kullanıcı kararı: 1.3.
-        MARKETING_VERSION: "1.3"
+        MARKETING_VERSION: "1.4"
         # DVB-000109 — doğrudan APNs: prepare-native-ios.mjs aps-environment
         # entitlement'ını yazsın. Ön koşul: App ID'de Push Notifications AÇIK.
         PUSH_APNS: "1"
