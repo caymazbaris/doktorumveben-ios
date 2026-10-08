@@ -90,6 +90,15 @@ sleep 45
 
 xcrun simctl install "$UDID" "$APP"
 
+# DVB-000345 — KONUM İZNİ ÖNCEDEN VERİLİR. 9 Eki 2026 build #15/#16: uygulama ilk açılışta (arama ekranı, DVB-000264)
+# konum izni istiyor; cihaz her derlemede sıfırdan kurulduğu için izin hiç cevaplanmamış oluyor ve iOS'un
+# 'Allow "Doktorum Ve Ben" to use your location?' penceresi TÜM karelerin üstüne biniyordu → 06 karesinde
+# "Apple ile giriş" düğmesi örtüldü ve 4.8 kapısı build'i düşürdü. İzin kurulumdan hemen sonra, ilk açılıştan
+# ÖNCE verilir; simülatöre sabit bir konum (İzmir, Konak) atanır ki arama karesi her derlemede aynı il/ilçeyle
+# çizilsin. Bu iki komut yoksa (eski Xcode) betik durmaz; aşağıdaki OCR kapısı pencereyi yine yakalar.
+xcrun simctl privacy "$UDID" grant location "$BUNDLE"   || echo "UYARI: konum izni önceden verilemedi (simctl privacy) — pencere karelere düşebilir"
+xcrun simctl location "$UDID" set 38.4189,27.1287   || echo "UYARI: simülatör konumu atanamadı (simctl location) — arama karesi 'Tüm Türkiye' ile çizilir"
+
 # MUTLAK yol ŞART: ekran görüntüsünü CoreSimulator servisi yazıyor, bu kabuk
 # değil — göreli yolu bizim çalışma dizinimize göre çözemiyor ve
 # "The folder ... doesn't exist" ile düşüyor (ilk denemede tam bu oldu).
@@ -160,6 +169,13 @@ xcrun simctl shutdown "$UDID" || true
 #   2) uygulamanın kendi hata durumları (çözümleme/ağ hatası ekranı).
 if grep -Eqi "Apple Intelligence|Ready for Apple" "$OCR"; then
   echo "HATA: karelerde iOS sistem bildirim banner'ı var — mağazaya gidemez."
+  exit 1
+fi
+# DVB-000345 — izin penceresi (konum ya da başka bir sistem izni) karelere düştüyse açıkça söyle; eskiden bu durum
+# yalnız dolaylı olarak ("Apple ile giriş görünmüyor") ortaya çıkıyordu ve asıl neden gizli kalıyordu.
+if grep -Eqi "to use your location|Allow While Using App|Allow Once|Konumunuzu kullan|Uygulamayı Kullanırken" "$OCR"; then
+  echo "HATA: karelerde sistemin İZİN penceresi var (konum). 'simctl privacy … grant location' adımının"
+  echo "çalıştığını ve uygulamanın ekran görüntüsü modunda başka bir izin istemediğini kontrol edin."
   exit 1
 fi
 if grep -Eqi "beklenmeyen bir yanıt|Profil alınamadı|Takvim açılamadı|Bilinmeyen hata" "$OCR"; then
