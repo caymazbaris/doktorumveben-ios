@@ -186,9 +186,13 @@ struct DVBAppointmentDetailView: View {
     var onChange: (DVBAppointment) -> Void
 
     @EnvironmentObject private var session: DVBSession
+    @Environment(\.openURL) private var openURL
     @State private var current: DVBAppointment
     @State private var busy = false
     @State private var toast: String?
+    /// DVB-000341 — online görüşme düğmesi saat ilerledikçe kendini güncellesin (oda 15 dk önce açılır).
+    @State private var simdi = Date()
+    private let saatSayaci = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     init(appointment: DVBAppointment, onChange: @escaping (DVBAppointment) -> Void) {
         self.appointment = appointment
@@ -212,6 +216,27 @@ struct DVBAppointmentDetailView: View {
                 if let dk = current.durationMinutes { labelled("Süre", "\(dk) dakika") }
                 labelled("Durum", current.statusLabel ?? current.status)
                 labelled("Randevu no", current.no)
+            }
+
+            // DVB-000341 — online görüşmeye uygulamadan katılım. Kullanıcı (8 Eki 2026): "mobil görüşme detaylarını ...
+            // online görüşmeyi mobilden de yapılabilsin". Bağlantı Safari'de açılır (kamera/mikrofon izni orada verilir).
+            if let g = current.onlineMeeting, !g.bittiMi(simdi), let url = URL(string: g.joinUrl) {
+                Section {
+                    Button {
+                        openURL(url)
+                    } label: {
+                        Label(g.acikMi(simdi) ? "Görüşmeye katıl" : "Görüşme odasını aç", systemImage: "video")
+                            .font(.body.weight(.semibold))
+                    }
+                    if !g.acikMi(simdi), let acilis = g.opensAt {
+                        Text("Odanın açılış saati: \(DVBOnlineSaat.saat(acilis)). Daha önce açarsanız bekleme sayfası görünür.")
+                            .font(.footnote).foregroundColor(.secondary)
+                    }
+                } header: {
+                    Text("Online görüşme")
+                } footer: {
+                    Text(g.hint ?? "Bağlantıya basınca bekleme odasına alınırsınız; hekiminiz sizi içeri alacak.")
+                }
             }
 
             if let loc = current.location, (loc.address?.isEmpty == false) {
@@ -276,6 +301,7 @@ struct DVBAppointmentDetailView: View {
         }
         .navigationTitle("Randevu")
         .navigationBarTitleDisplayMode(.inline)
+        .onReceive(saatSayaci) { simdi = $0 }
     }
 
     private func labelled(_ title: String, _ value: String?) -> some View {
@@ -306,5 +332,16 @@ struct DVBAppointmentDetailView: View {
         } catch {
             toast = (error as? DVBError)?.errorDescription ?? "İşlem tamamlanamadı."
         }
+    }
+}
+
+/// DVB-000341 — online görüşme saatleri Türkiye saatiyle gösterilir (cihaz yurt dışındaysa da randevu saati aynı kalsın).
+enum DVBOnlineSaat {
+    static func saat(_ d: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "tr_TR")
+        f.timeZone = TimeZone(identifier: "Europe/Istanbul")
+        f.dateFormat = "HH:mm"
+        return f.string(from: d)
     }
 }

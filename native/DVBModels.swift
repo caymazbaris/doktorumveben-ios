@@ -88,6 +88,8 @@ struct DVBAppointment: Decodable, Identifiable {
     let location: Location?
     let canMarkComing: Bool?
     let canRequestCancel: Bool?
+    /// DVB-000341 — online görüşmeye katılım (yalnız online randevuda; eski sunucuda yok → nil).
+    let onlineMeeting: DVBOnlineGorusme?
 
     struct Location: Decodable {
         let name: String?
@@ -113,6 +115,36 @@ struct DVBAppointment: Decodable, Identifiable {
         case doctorSpecialty = "doctor_specialty"
         case canMarkComing = "can_mark_coming"
         case canRequestCancel = "can_request_cancel"
+        case onlineMeeting = "online_meeting"
+    }
+}
+
+/// DVB-000341 — online görüşme bağlantısı (sunucu: Appointment::katilimBilgisi). Hasta bekleme odasına düşer; hekim
+/// yönetici olarak girer ve hastayı "İçeri al" ile kabul eder. Bağlantı SAFARİ'de açılır (kamera/mikrofon izni orada).
+/// ⚠ BURADA DURMALI: DVBAppointment bu türü kullanıyor ve DVBModels.swift widget hedefinde de derleniyor.
+struct DVBOnlineGorusme: Decodable, Hashable {
+    let joinUrl: String
+    let joinable: Bool?
+    let opensAt: Date?
+    let closesAt: Date?
+    let hint: String?
+
+    /// Liste bayatlamış olabilir: katılım penceresi cihaz saatiyle yeniden hesaplanır.
+    func acikMi(_ simdi: Date = Date()) -> Bool {
+        guard let opensAt, let closesAt else { return joinable ?? false }
+        return simdi >= opensAt && simdi <= closesAt
+    }
+
+    func bittiMi(_ simdi: Date = Date()) -> Bool {
+        guard let closesAt else { return false }
+        return simdi > closesAt
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case joinable, hint
+        case joinUrl = "join_url"
+        case opensAt = "opens_at"
+        case closesAt = "closes_at"
     }
 }
 

@@ -28,6 +28,15 @@ struct DVBHekimBilgisi: Decodable {
         let questions: Bool?
         let payments: Bool?
         let messages: Bool?
+        // DVB-000341 — hekimin günlük işleri (eski sunucuda yok → nil → gösterilmez).
+        let patientRequests: Bool?
+        let schedule: Bool?
+        let services: Bool?
+
+        enum CodingKeys: String, CodingKey {
+            case patients, questions, payments, messages, schedule, services
+            case patientRequests = "patient_requests"
+        }
     }
 
     /// DVB-000272 — rozetler: görünen sohbetlerde okunmamış hasta mesajı / zil (mesaj bildirimleri hariç).
@@ -39,6 +48,9 @@ struct DVBHekimBilgisi: Decodable {
     var hastalarAcik: Bool { features?.patients ?? false }
     var sorularAcik: Bool { features?.questions ?? false }
     var odemelerAcik: Bool { features?.payments ?? false }
+    var taleplerAcik: Bool { features?.patientRequests ?? false }
+    var calismaSaatleriAcik: Bool { features?.schedule ?? false }
+    var hizmetlerAcik: Bool { features?.services ?? false }
 
     struct Hekim: Decodable {
         let id: Int
@@ -76,6 +88,9 @@ struct DVBHekimRandevu: Decodable, Identifiable {
     let patientPhone: String?
     let service: String?
     let actions: [String]?
+    /// DVB-000341 — taşıma ekranı boş saatleri bu hizmetin süresiyle ister; online görüşmenin yönetici bağlantısı.
+    let serviceId: Int?
+    let onlineMeeting: DVBOnlineGorusme?
     // Yalnız detayda gelir.
     let notes: String?
     let cancelReason: String?
@@ -94,6 +109,14 @@ struct DVBHekimRandevu: Decodable, Identifiable {
         case patientPhone = "patient_phone"
         case cancelReason = "cancel_reason"
         case patientEmail = "patient_email"
+        case serviceId = "service_id"
+        case onlineMeeting = "online_meeting"
+    }
+
+    /// DVB-000341 — taşınabilir mi (web ile aynı: yalnız etkin randevu; muhasebe görünümüne işlem sunulmaz → actions boş).
+    var tasinabilir: Bool {
+        guard let status, ["pending", "confirmed", "arrived"].contains(status) else { return false }
+        return !(actions ?? []).isEmpty
     }
 
     /// Durum rengi — anlamsal (yeşil/turuncu/kırmızı), marka renginden ayrı.
@@ -409,6 +432,10 @@ struct DVBHekimRandevuDetayView: View {
     @State private var onayBekleyen: String?
     @State private var iptalAcik = false
     @State private var iptalNedeni = ""
+    /// DVB-000341 — randevu taşıma sayfası + online görüşme düğmesinin saatle güncellenmesi.
+    @State private var tasimaAcik = false
+    @State private var simdi = Date()
+    let saatSayaci = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     private var r: DVBHekimRandevu { detay ?? ozet }
 
@@ -442,6 +469,40 @@ struct DVBHekimRandevuDetayView: View {
                 if let no = r.appointmentNo { bilgi("Randevu no", no) }
                 if let n = detay?.notes, !n.isEmpty { bilgi("Not", n) }
                 if let c = detay?.cancelReason, !c.isEmpty { bilgi("İptal nedeni", c) }
+            }
+
+            // DVB-000341 — hekim online görüşmeyi telefondan yönetir. Kullanıcı (8 Eki 2026): "online görüşmeyi mobilden de
+            // yapılabilsin doktor". Yönetici bağlantısı Safari'de açılır; hasta bekleme odasına gelince "İçeri al" denir.
+            if let g = r.onlineMeeting, !g.bittiMi(simdi), let url = URL(string: g.joinUrl) {
+                Section {
+                    Button {
+                        openURL(url)
+                    } label: {
+                        Label(g.acikMi(simdi) ? "Görüşmeyi başlat" : "Görüşme odasını aç", systemImage: "video.fill")
+                            .font(.body.weight(.semibold))
+                    }
+                    if !g.acikMi(simdi), let acilis = g.opensAt {
+                        Text("Odanın açılış saati: \(DVBOnlineSaat.saat(acilis)). Hastaya 15 dakika kala bağlantı gider.")
+                            .font(.footnote).foregroundColor(.secondary)
+                    }
+                } header: {
+                    Text("Online görüşme")
+                } footer: {
+                    Text(g.hint ?? "Hastanız bekleme odasına geldiğinde görüşme ekranındaki bildirimden \"İçeri al\" ile kabul edin.")
+                }
+            }
+
+            if r.tasinabilir {
+                Section {
+                    Button {
+                        tasimaAcik = true
+                    } label: {
+                        Label("Randevuyu taşı", systemImage: "calendar.badge.clock")
+                    }
+                    .disabled(calisiyor)
+                } footer: {
+                    Text("Yeni gün ve saat seçin; hastaya bilgi gider.")
+                }
             }
 
             if let tel = r.patientPhone, !tel.isEmpty {
@@ -480,6 +541,19 @@ struct DVBHekimRandevuDetayView: View {
         .navigationTitle("Randevu")
         .navigationBarTitleDisplayMode(.inline)
         .task { await yukle() }
+        .onReceive(saatSayaci) { simdi = $0 }
+        .sheet(isPresented: $tasimaAcik) {
+            DVBHekimTasimaView(randevu: r) { m in
+                mesaj = m
+                hata = nil
+                Task {
+                    await yukle()
+                    degisti()
+                    await session.hekimiYukle()
+                }
+            }
+            .environmentObject(session)
+        }
         .alert(onayBekleyen.map { DVBHekimIslem.etiket($0) + "?" } ?? "",
                isPresented: Binding(get: { onayBekleyen != nil }, set: { if !$0 { onayBekleyen = nil } })) {
             Button("Vazgeç", role: .cancel) { onayBekleyen = nil }

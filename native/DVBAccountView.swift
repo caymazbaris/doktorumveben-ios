@@ -134,8 +134,24 @@ struct DVBAccountView: View {
             }
 
             // DVB-000286 — hekimin takvim bağlantıları (Apple Takvim aboneliği, Google, durum). Muhasebe görünümünde yok.
+            // DVB-000341 — hekimin günlük işleri: hasta talepleri, çalışma saatleri ve izinler, hizmetler (sunucu bayraklarıyla).
             if let hekim = session.hekim, hekim.readOnly != true {
                 Section("Hekim") {
+                    if hekim.taleplerAcik {
+                        NavigationLink(destination: DVBHekimTaleplerView()) {
+                            Label("Hasta talepleri", systemImage: "tray.full")
+                        }
+                    }
+                    if hekim.calismaSaatleriAcik {
+                        NavigationLink(destination: DVBHekimCalismaSaatleriView()) {
+                            Label("Çalışma saatleri ve izinler", systemImage: "clock")
+                        }
+                    }
+                    if hekim.hizmetlerAcik {
+                        NavigationLink(destination: DVBHekimHizmetlerView()) {
+                            Label("Hizmetler", systemImage: "list.bullet.rectangle")
+                        }
+                    }
                     NavigationLink(destination: DVBHekimTakvimView()) {
                         Label("Takvim bağlantıları", systemImage: "calendar.badge.clock")
                     }
