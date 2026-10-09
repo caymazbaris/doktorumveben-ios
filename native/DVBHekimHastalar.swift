@@ -327,6 +327,15 @@ struct DVBHekimHastaKartView: View {
                     }
                 }
 
+                // DVB-000351 — imzalı onamlar, klinikte imza, uzaktan imza bağlantısı.
+                if session.hekim?.onamlarAcik == true {
+                    Section {
+                        NavigationLink(destination: DVBHekimHastaOnamlariView(hastaId: hastaId, ad: k.name ?? ad)) {
+                            Label("Onamlar", systemImage: "signature")
+                        }
+                    }
+                }
+
                 Section {
                     if let notlar = k.notes, !notlar.isEmpty {
                         ForEach(notlar) { n in

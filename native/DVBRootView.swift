@@ -159,7 +159,10 @@ extension DVBRootView {
             // Sekmesi olan hedef kendi sekmesinde açılır; bildirim listesinin sekmesi yok → sayfa.
             switch hedef {
             case .randevular: sekme = .randevular
-            case .hesabim: sekme = .hesabim
+            case .hesabim:
+                sekme = .hesabim
+                // DVB-000352 — /hesabim/profil, /odemeler, /puanlarim… Hesabım'ın kökü değil, ilgili yerli ekran.
+                DVBGezinme.shared.hastaHesapEkrani = DVBHastaHesapEkrani(yol: url.path)
             case .bildirimler: hastaHedefi = DVBHastaHedefSunumu(hedef: hedef)
             // DVB-000290 — hekimden gelen mesaj: Hesabım sekmesinde, Mesajlarım'dan açılmış gibi yerli sohbet.
             case .mesaj(let id):
@@ -236,6 +239,8 @@ final class DVBGezinme: ObservableObject {
     @Published var hastaMesajlar = false
     /// DVB-000286 — hekim hesabı: Hesabım sekmesinde takvim bağlantıları açılsın.
     @Published var takvim = false
+    /// DVB-000352 — hasta hesabı: Hesabım sekmesinde açılacak yerli ekran (profil, ödemeler, puanlar, sigortalar…).
+    @Published var hastaHesapEkrani: DVBHastaHesapEkrani?
 }
 
 // MARK: - Hasta bildirim hedefleri (DVB-000109)
@@ -261,7 +266,8 @@ enum DVBHastaHedefi: Equatable {
             self = .randevular
         } else if yol == "/hesabim/bildirimler" {
             self = .bildirimler
-        } else if ["/hesabim", "/hesabim/profil", "/hesabim/odemeler", "/hesabim/yakinlar", "/hesabim/yorumlar"].contains(yol) {
+        } else if yol == "/hesabim" || DVBHastaHesapEkrani(yol: yol) != nil {
+            // DVB-000352 — eşleme listesi DVBHastaHesapEkrani'nda (puanlarım, sigorta, veri indirme dahil).
             self = .hesabim
         } else {
             return nil

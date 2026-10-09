@@ -33,6 +33,9 @@ struct DVBSearchView: View {
     @State private var doktorBulAcik = false
     // DVB-000281 — tüm branşların aranabilir listesi.
     @State private var bransListesiAcik = false
+    /// DVB-000353 — "Doktora sor" sitede kapatılabiliyor (qa_enabled); kapalıyken bağlantı hiç görünmez
+    /// (boş/kapalı bölüm App Store incelemesinde "eksik özellik" sayılır).
+    @State private var doktoraSorAcik = false
     @EnvironmentObject private var session: DVBSession
     @EnvironmentObject private var lock: DVBBiometricLock
     /// İlk açılışta konumu YALNIZ BİR KEZ kendiliğinden iste (her sekme dönüşünde sormasın).
@@ -89,6 +92,19 @@ struct DVBSearchView: View {
                 // DVB-000344 — kullanıcı (9 Eki 2026): "saç ekimi ve hastaneler ile ilgili kısımları da ekle".
                 NavigationLink(destination: DVBHastanelerView()) {
                     Label("Hastaneler", systemImage: "building.2")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .listRowSeparator(.hidden)
+                // DVB-000353 — kullanıcı (9 Eki 2026): "Doktora sor ve Sağlık rehberi: hasta çekmek için içerik".
+                if doktoraSorAcik {
+                    NavigationLink(destination: DVBDoktoraSorView()) {
+                        Label("Doktora sor", systemImage: "questionmark.bubble")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .listRowSeparator(.hidden)
+                }
+                NavigationLink(destination: DVBSaglikRehberiView()) {
+                    Label("Sağlık rehberi", systemImage: "book")
                         .font(.subheadline.weight(.semibold))
                 }
                 .listRowSeparator(.hidden)
@@ -165,6 +181,9 @@ struct DVBSearchView: View {
             }
             .task {
                 await loadSpecialties()
+                // DVB-000353 — bölüm açık mı: kapalıyken sunucu 404 döner.
+                let soruBranslari: [DVBSpecialty]? = try? await DVBAPI.shared.get("questions/specialties")
+                doktoraSorAcik = soruBranslari != nil
                 await ilkKonum()
                 if doctors.isEmpty { reload() }
             }

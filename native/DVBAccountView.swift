@@ -29,6 +29,8 @@ struct DVBAccountView: View {
     @State private var mesajlarAcik = false
     /// DVB-000286 — takvim hatası bildirimi hekimin takvim ekranını bu sekmede açar.
     @State private var takvimAcik = false
+    /// DVB-000352 — bildirimden gelen `/hesabim/...` adresi bu sekmede ilgili yerli ekranı açar.
+    @State private var hastaHesapHedefi: DVBHastaHesapEkrani?
 
     var body: some View {
         NavigationView {
@@ -47,9 +49,18 @@ struct DVBAccountView: View {
                     ) { EmptyView() }
                     NavigationLink(destination: DVBHastaMesajlarView(), isActive: $mesajlarAcik) { EmptyView() }
                     NavigationLink(destination: DVBHekimTakvimView(), isActive: $takvimAcik) { EmptyView() }
+                    NavigationLink(
+                        destination: (hastaHesapHedefi ?? .profil).gorunum,
+                        isActive: Binding(get: { hastaHesapHedefi != nil }, set: { if !$0 { hastaHesapHedefi = nil } })
+                    ) { EmptyView() }
                 }
                 .hidden()
             )
+            .onReceive(gezinme.$hastaHesapEkrani) { ekran in
+                guard let ekran else { return }
+                hastaHesapHedefi = ekran
+                gezinme.hastaHesapEkrani = nil
+            }
             .onReceive(gezinme.$takvim) { acik in
                 guard acik else { return }
                 takvimAcik = true
@@ -131,6 +142,13 @@ struct DVBAccountView: View {
                 NavigationLink(destination: DVBOdemelerView()) {
                     Label("Ödemelerim", systemImage: "creditcard")
                 }
+                // DVB-000352 — web /hesabim/puanlarim ve /hesabim/sigorta karşılıkları.
+                NavigationLink(destination: DVBPuanlarimView()) {
+                    Label("Puanlarım ve davet", systemImage: "gift")
+                }
+                NavigationLink(destination: DVBSigortalarimView()) {
+                    Label("Sigortalarım", systemImage: "cross.case")
+                }
             }
 
             // DVB-000343 — muhasebeci (salt okunur) hesap faturaları görür; Hekim bölümü ona kapalı olduğundan ayrı bölüm.
@@ -188,6 +206,12 @@ struct DVBAccountView: View {
                     if hekim.hizmetlerAcik {
                         NavigationLink(destination: DVBHekimHizmetlerView()) {
                             Label("Hizmetler", systemImage: "list.bullet.rectangle")
+                        }
+                    }
+                    // DVB-000351 — onam metinleri (kendi + hazır); hastaya imza hasta kartındaki "Onamlar"dan.
+                    if hekim.onamlarAcik {
+                        NavigationLink(destination: DVBHekimOnamFormlariView()) {
+                            Label("Onam formları", systemImage: "signature")
                         }
                     }
                     NavigationLink(destination: DVBHekimTakvimView()) {
@@ -261,6 +285,10 @@ struct DVBAccountView: View {
                     webSheet = .init(url: DVBConfig.webBase.appendingPathComponent("sozlesmeler/gizlilik"))
                 } label: {
                     Label("Gizlilik ve KVKK", systemImage: "lock.shield")
+                }
+                // DVB-000352 — KVKK veri kopyası (web "Verilerimi indir" ile aynı dosya).
+                NavigationLink(destination: DVBVeriIndirView()) {
+                    Label("Verilerimi indir", systemImage: "square.and.arrow.down")
                 }
             }
 

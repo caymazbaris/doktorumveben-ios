@@ -53,10 +53,13 @@ struct DVBHekimBilgisi: Decodable {
         let staff: Bool?
         let leads: Bool?
         let secretaries: Bool?
+        // DVB-000351 — onam formları ve uzaktan imza (eski sunucuda yok → nil → gösterilmez).
+        let consents: Bool?
 
         enum CodingKeys: String, CodingKey {
             case patients, questions, payments, messages, schedule, services, profile, accounting, invoices, billing
             case locations, insurances, nps, reports, issues, packages, recurring, staff, leads, secretaries
+            case consents
             case patientRequests = "patient_requests"
             case bookingSettings = "booking_settings"
             case bookingPage = "booking_page"
@@ -81,6 +84,8 @@ struct DVBHekimBilgisi: Decodable {
     var muhasebeAcik: Bool { features?.accounting ?? false }
     var faturalarAcik: Bool { features?.invoices ?? false }
     var odemeFaturaBilgileriAcik: Bool { features?.billing ?? false }
+    /// DVB-000351 — onam formları (hekim menüsü) ve hasta kartındaki "Onamlar".
+    var onamlarAcik: Bool { features?.consents ?? false }
     /// DVB-000345 — "Klinik yönetimi" ekranında en az bir bölüm açık mı.
     var yonetimAcik: Bool {
         guard let f = features else { return false }

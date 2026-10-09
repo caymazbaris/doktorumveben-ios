@@ -653,11 +653,14 @@ private struct DVBDegerlendirView: View {
 struct DVBOdemelerView: View {
     @EnvironmentObject private var session: DVBSession
     @State private var odemeler: [DVBOdeme] = []
+    /// DVB-000352 — web'deki "Ödeme Bekleyen Randevular" kutusu ("Öde" tarayıcıda açılır).
+    @State private var bekleyenler: [DVBOdemeBekleyen] = []
     @State private var yuklendi = false
     @State private var hata: String?
 
     var body: some View {
         List {
+            DVBOdemeBekleyenlerBolumu(bekleyenler: bekleyenler)
             if let hata, odemeler.isEmpty {
                 DVBStateView(icon: "wifi.exclamationmark", title: "Liste alınamadı", message: hata) { Task { await yukle() } }
             } else if yuklendi && odemeler.isEmpty {
@@ -699,6 +702,10 @@ struct DVBOdemelerView: View {
             let l: DVBList<DVBOdeme> = try await DVBAPI.shared.get("my/payments", token: token)
             odemeler = l.data
             hata = nil
+            // DVB-000352 — bekleyenler ayrı uç; alınamazsa geçmiş listesi yine gösterilir.
+            if let b: DVBList<DVBOdemeBekleyen> = try? await DVBAPI.shared.get("my/payments/pending", token: token) {
+                bekleyenler = b.data
+            }
         } catch {
             if let m = DVBError.mesaj(error) { hata = m }
         }
