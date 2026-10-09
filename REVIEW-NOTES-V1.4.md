@@ -2,7 +2,7 @@
 
 > Bu dosya **App Store Connect → App Review Information → Notes** alanına girilecek metnin birebir kopyasıdır
 > (alan sınırı 4.000 karakter). ⚠ `REVIEW-NOTES-V1.3.md` ve öncekiler 1.4 için GEÇERSİZ.
-> Hazırlayan: DVB-000341/343/344/345 (9 Ekim 2026). İnceleme hesabı 1.3 ile aynı (`apple.review@doktorumveben.com`,
+> Hazırlayan: DVB-000341/343/344/345 + DVB-000351/352/353 (9 Ekim 2026). İnceleme hesabı 1.3 ile aynı (`apple.review@doktorumveben.com`,
 > şifre yalnız ASC'deki alanda — bu depoda tutulmaz). Hekim demo hesabı 1.3'teki karar gereği verilmedi.
 
 ## Gönderimden önce kullanıcının yapması gerekenler
@@ -15,6 +15,10 @@
    e-posta** ile talep bırakabiliyor. ASC → App Privacy'de "Photos or Videos" ile "Financial Info → Other Financial Info"
    (ve "Contact Info") beyanlarının işaretli olduğunu kontrol et; yoksa ekle (amaç: App Functionality, kimliğe bağlı,
    izleme yok). Gizlilik etiketi gerçeği yansıtmalı — App Review yanıltılmaz.
+   DVB-000351/352/353 ile eklenenler: hasta **sağlık sigortası poliçesini** (firma, poliçe no, geçerlilik) kaydedebiliyor
+   → "Health & Fitness → Health" ya da "Financial Info → Other Financial Info" beyanından biri işaretli olmalı;
+   hekim modunda hastanın **onam imzası** (parmakla çizilen imza görüntüsü) alınıyor → "Other Data" (ya da "Other User
+   Content"); "Doktora sor"da kullanıcı **soru metni** yazabiliyor → "User Content → Other User Content".
 
 ## ASC'ye girilecek metin (İngilizce, birebir)
 
@@ -28,9 +32,12 @@ WHAT'S NEW IN 1.4 (patients — no sign-in needed)
 1) "Hastaneler" (Hospitals) on the search screen: hospital list by city, hospital page (about, departments, contracted insurers, photos) and the doctors of each department.
 2) "Saç ekimi (İzmir)" (hair transplant): an information page with FAQ and clinic profiles. A user can ask a clinic for a free consultation or for price information; the form asks for explicit consent before the name and phone are forwarded to that clinic. No prices are shown in the app.
 3) Online video consultations: for an online appointment the appointment screen shows "Görüşmeye katıl". The meeting opens in Safari (WebRTC; camera/microphone permission is asked by Safari, not by the app). The patient waits in a waiting room until the doctor admits them.
+4) Account (sign-in): "Puanlarım" (points and referral code), "Sigortalarım" (save your health insurance policy), "Verilerimi indir" (download a copy of your account data as a JSON file — data portability right under KVKK).
+5) "Sağlık rehberi" (health guide): read-only articles, each reviewed by a doctor.
+6) "Doktora sor" (ask a doctor) appears only when the section is enabled on our website (currently off). Questions are pre-moderated: nothing is published until a verified doctor answers; the asker's name is shortened and contact details are never shown.
 
 WHAT'S NEW IN 1.4 (doctor mode only)
-4) Doctor mode (enabled by the server only for verified practitioner accounts) now covers the doctor's web panel: profile editing and profile photo (system photo picker, no photo-library permission), calendar connections (iCloud, Outlook, Google, ICS), working hours and leave, services, patient requests, rescheduling, accounting, e-invoices (Turkish e-Fatura/e-Arşiv), invoice and bank (IBAN) details for receiving payouts, clinic addresses, insurers, booking-page link and QR code, reports, packages, staff, sales leads and a "report a problem" form.
+7) Doctor mode (enabled by the server only for verified practitioner accounts) now covers the doctor's web panel: consent forms (templates; the patient signs on the device with a finger, or receives a signing link; signed PDFs), profile editing and profile photo (system photo picker, no photo-library permission), calendar connections (iCloud, Outlook, Google, ICS), working hours and leave, services, patient requests, rescheduling, accounting, e-invoices (Turkish e-Fatura/e-Arşiv), invoice and bank (IBAN) details for receiving payouts, clinic addresses, insurers, booking-page link and QR code, reports, packages, staff, sales leads and a "report a problem" form.
 The review account is a patient, so these screens are not visible to it. If you need to see doctor mode, please reply in Resolution Center and we will provide a practitioner demo account with sample data only.
 
 PAYMENTS
@@ -48,5 +55,8 @@ No third-party advertising or analytics SDKs, no tracking, no ATT prompt. Health
 • Online görüşme: randevu ekranından "Görüşmeye katıl"; hekiminiz sizi bekleme odasından içeri alır.
 • Hekimler için: profil ve fotoğraf düzenleme, takvim bağlantıları (iCloud, Outlook, Google), çalışma saatleri ve izinler, hizmetler, hasta talepleri, randevu taşıma.
 • Hekimler için: muhasebe, e-Fatura, fatura ve banka bilgileri, adresler, sigortalar, randevu sayfası ve QR, raporlar, paketler, personel ve satış adayları.
+• Hekimler için: onam formları — hasta ekranda parmağıyla imzalar ya da imza bağlantısı gönderilir; imzalı PDF.
+• Hesabım: Puanlarım, Sigortalarım ve Verilerimi indir.
+• Sağlık rehberi: hekim onaylı sağlık yazıları.
 • Hata düzeltmeleri ve iyileştirmeler.
 ```
