@@ -10,7 +10,8 @@
 1. ASC'de **1.4** sürümünü aç (yayın: onaylanınca otomatik — 1.3 ile aynı karar).
 2. Codemagic "iOS App Store (TestFlight)" derlemesi (MARKETING_VERSION 1.4) işlendikten sonra **Add Build**.
 3. Aşağıdaki iki metni yapıştır → Save → **Add for Review** → **Submit for Review**.
-4. ⚠ **App Privacy (Gizlilik etiketleri)**: bu sürümde hekim hesabı uygulamadan **profil fotoğrafı yükleyebiliyor**
+4. ✅ **App Privacy — YAPILDI (10 Ekim 2026, kullanıcı "hepsini ekle"):** ASC'de 12 veri türü yayında; yeni eklenenler Physical Address, Other Financial Info, Emails or Text Messages, Photos or Videos, Customer Support, Other User Content (hepsi App Functionality · kimliğe bağlı · izleme yok). Sigorta poliçesi mevcut "Health" beyanında. Aşağıdaki açıklama kayıt için duruyor.
+   Eski not — bu sürümde hekim hesabı uygulamadan **profil fotoğrafı yükleyebiliyor**
    ve **IBAN / fatura bilgisi (ünvan, VKN/TCKN, adres)** girebiliyor; hasta da saç ekimi merkezine **ad, telefon,
    e-posta** ile talep bırakabiliyor. ASC → App Privacy'de "Photos or Videos" ile "Financial Info → Other Financial Info"
    (ve "Contact Info") beyanlarının işaretli olduğunu kontrol et; yoksa ekle (amaç: App Functionality, kimliğe bağlı,
