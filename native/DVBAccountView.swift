@@ -142,24 +142,31 @@ struct DVBAccountView: View {
                 NavigationLink(destination: DVBProfilView()) {
                     Label("Profil bilgilerim", systemImage: "person.text.rectangle")
                 }
-                NavigationLink(destination: DVBYakinlarView()) {
-                    Label("Yakınlarım", systemImage: "person.2")
-                }
-                NavigationLink(destination: DVBFavorilerView()) {
-                    Label("Favori hekimlerim", systemImage: "heart")
-                }
-                NavigationLink(destination: DVBYorumlarView()) {
-                    Label("Değerlendirmelerim", systemImage: "star.bubble")
+                // DVB-000371 — hasta ekranları hekim paneli hesaplarında (hekim, sekreter, sağlayıcı, muhasebe) GÖRÜNMEZ.
+                // Kullanıcı (11 Eki 2026): "hekim tarafında yakınlarım favori hekimlerim ve değerlendirmelerim görünmemeli
+                // puanlar ve davet te sigortalarım da". Hekimin kendi sigortaları "Klinik yönetimi › Anlaşmalı sigortalar"da.
+                if session.hekim == nil {
+                    NavigationLink(destination: DVBYakinlarView()) {
+                        Label("Yakınlarım", systemImage: "person.2")
+                    }
+                    NavigationLink(destination: DVBFavorilerView()) {
+                        Label("Favori hekimlerim", systemImage: "heart")
+                    }
+                    NavigationLink(destination: DVBYorumlarView()) {
+                        Label("Değerlendirmelerim", systemImage: "star.bubble")
+                    }
                 }
                 NavigationLink(destination: DVBOdemelerView()) {
                     Label("Ödemelerim", systemImage: "creditcard")
                 }
-                // DVB-000352 — web /hesabim/puanlarim ve /hesabim/sigorta karşılıkları.
-                NavigationLink(destination: DVBPuanlarimView()) {
-                    Label("Puanlarım ve davet", systemImage: "gift")
-                }
-                NavigationLink(destination: DVBSigortalarimView()) {
-                    Label("Sigortalarım", systemImage: "cross.case")
+                // DVB-000352 — web /hesabim/puanlarim ve /hesabim/sigorta karşılıkları (DVB-000371: yalnız hasta hesabında).
+                if session.hekim == nil {
+                    NavigationLink(destination: DVBPuanlarimView()) {
+                        Label("Puanlarım ve davet", systemImage: "gift")
+                    }
+                    NavigationLink(destination: DVBSigortalarimView()) {
+                        Label("Sigortalarım", systemImage: "cross.case")
+                    }
                 }
             }
 
@@ -232,12 +239,16 @@ struct DVBAccountView: View {
                 }
             }
 
-            Section("Sağlık kayıtlarım") {
-                NavigationLink(destination: DVBDocumentsView()) {
-                    Label("Belgelerim", systemImage: "doc.text")
-                }
-                NavigationLink(destination: DVBConsentsView()) {
-                    Label("Onam formlarım", systemImage: "signature")
+            // DVB-000371 — "sağlık kayıtlarım kısmı da hekim hesabında görünmemeli" (kullanıcı, 11 Eki 2026). Hekimin
+            // hastaya imzalattığı onamlar Hekim bölümündeki "Onam formları"nda.
+            if session.hekim == nil {
+                Section("Sağlık kayıtlarım") {
+                    NavigationLink(destination: DVBDocumentsView()) {
+                        Label("Belgelerim", systemImage: "doc.text")
+                    }
+                    NavigationLink(destination: DVBConsentsView()) {
+                        Label("Onam formlarım", systemImage: "signature")
+                    }
                 }
             }
 
