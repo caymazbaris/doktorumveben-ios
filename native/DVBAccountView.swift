@@ -35,6 +35,13 @@ struct DVBAccountView: View {
     /// DVB-000352 — bildirimden gelen `/hesabim/...` adresi bu sekmede ilgili yerli ekranı açar.
     @State private var hastaHesapHedefi: DVBHastaHesapEkrani?
 
+    /// DVB-000371 — hekim paneli hesabı "Ödemelerim"i (aldığı ödemeler) görür mü: muhasebe ya da ödeme bölümü açık,
+    /// salt okunur değil.
+    private var hekimOdemeleriGorur: Bool {
+        guard let h = session.hekim, h.readOnly != true else { return false }
+        return h.muhasebeAcik || h.odemelerAcik
+    }
+
     var body: some View {
         NavigationView {
             Group {
@@ -156,8 +163,17 @@ struct DVBAccountView: View {
                         Label("Değerlendirmelerim", systemImage: "star.bubble")
                     }
                 }
-                NavigationLink(destination: DVBOdemelerView()) {
-                    Label("Ödemelerim", systemImage: "creditcard")
+                // DVB-000371 — hekim hesabında "Ödemelerim" hekimin sistem üzerinden ALDIĞI ödemeler (kullanıcı: "ödemelerim
+                // gizlenmesin o sistemdeki aldığı ödemeleri vs görsün"). Finans yetkisi olmayan personel ve salt okunur
+                // muhasebe görünümü görmez (sunucu da 403 verir — DVB-000360).
+                if session.hekim == nil {
+                    NavigationLink(destination: DVBOdemelerView()) {
+                        Label("Ödemelerim", systemImage: "creditcard")
+                    }
+                } else if hekimOdemeleriGorur {
+                    NavigationLink(destination: DVBHekimOdemelerimView()) {
+                        Label("Ödemelerim", systemImage: "creditcard")
+                    }
                 }
                 // DVB-000352 — web /hesabim/puanlarim ve /hesabim/sigorta karşılıkları (DVB-000371: yalnız hasta hesabında).
                 if session.hekim == nil {

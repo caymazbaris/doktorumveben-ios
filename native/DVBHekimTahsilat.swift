@@ -378,20 +378,7 @@ struct DVBHekimTahsilatView: View {
 
     @ViewBuilder private var tahsilatBolumu: some View {
         Section {
-            VStack(alignment: .leading, spacing: 6) {
-                if let t = bekleyenToplam {
-                    HStack {
-                        Text("Gönderim bekleyen").foregroundColor(.secondary)
-                        Spacer()
-                        Text(t).font(.headline).monospacedDigit()
-                    }
-                }
-                if let v = valorGun {
-                    Text("Kartla yapılan tahsilatta PayTR komisyonu ve hizmet bedeli düşülür; kalan tutarın gönderim talebi tahsilattan \(v + 1) gün sonra ödeme hesabınızdaki IBAN'a otomatik oluşturulur.")
-                        .font(.caption).foregroundColor(.secondary)
-                }
-            }
-            .padding(.vertical, 2)
+            DVBTahsilatOzeti(bekleyenToplam: bekleyenToplam, valorGun: valorGun)
         }
 
         Section {
@@ -401,46 +388,10 @@ struct DVBHekimTahsilatView: View {
                 Text("Henüz tahsilat yok.").foregroundColor(.secondary)
             } else {
                 ForEach(tahsilatlar) { t in
-                    tahsilatSatiri(t)
+                    DVBTahsilatSatiri(t: t)
                         .onAppear { if t.id == tahsilatlar.last?.id { Task { await tahsilatlariYukle(sayfa: tahsilatSayfa + 1) } } }
                 }
             }
-        }
-    }
-
-    private func tahsilatSatiri(_ t: DVBTahsilat) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(t.payer ?? "—").font(.subheadline.weight(.semibold))
-                Spacer()
-                Text(t.amountDisplay).font(.subheadline.weight(.semibold)).monospacedDigit()
-            }
-            HStack {
-                Text(t.paidAt.map { DVBSaat.gun($0, "d MMM yyyy HH:mm") } ?? "—")
-                Spacer()
-                Text("Size gidecek: \(t.payoutDisplay)").monospacedDigit()
-            }
-            .font(.caption).foregroundColor(.secondary)
-            Text("PayTR: \(t.pspFeeDisplay) · Hizmet bedeli: \(t.commissionDisplay)")
-                .font(.caption2).foregroundColor(.secondary).monospacedDigit()
-            HStack(spacing: 6) {
-                Text(t.transfer.code == "gonderildi" ? "✓ \(t.transfer.label)" : t.transfer.label)
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(gonderimRengi(t.transfer.code).opacity(0.15))
-                    .foregroundColor(gonderimRengi(t.transfer.code))
-                    .clipShape(Capsule())
-                if let n = t.transfer.note { Text(n).font(.caption2).foregroundColor(.secondary) }
-            }
-        }
-        .padding(.vertical, 3)
-    }
-
-    private func gonderimRengi(_ kod: String) -> Color {
-        switch kod {
-        case "gonderildi": return DVBTheme.accent
-        case "bekliyor": return .orange
-        default: return .secondary
         }
     }
 
@@ -665,6 +616,148 @@ private struct DVBHastaSecici: View {
         do {
             let s: Sayfa = try await DVBAPI.shared.get("my/doctor/patients", query: q, token: token)
             sonuclar = s.data
+            hata = nil
+        } catch {
+            if let m = DVBError.mesaj(error) { hata = m }
+        }
+    }
+}
+
+// MARK: - Tahsilat ortak görünümleri (Tahsilat sekmesi + Hesabım › Ödemelerim)
+
+/// Gönderim bekleyen toplam + valör açıklaması.
+struct DVBTahsilatOzeti: View {
+    let bekleyenToplam: String?
+    let valorGun: Int?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let t = bekleyenToplam {
+                HStack {
+                    Text("Gönderim bekleyen").foregroundColor(.secondary)
+                    Spacer()
+                    Text(t).font(.headline).monospacedDigit()
+                }
+            }
+            if let v = valorGun {
+                Text("Kartla yapılan tahsilatta PayTR komisyonu ve hizmet bedeli düşülür; kalan tutarın gönderim talebi tahsilattan \(v + 1) gün sonra ödeme hesabınızdaki IBAN'a otomatik oluşturulur.")
+                    .font(.caption).foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+/// Tek tahsilat satırı: ödeyen, tutar, tarih, size gidecek, kesintiler, gönderim durumu.
+struct DVBTahsilatSatiri: View {
+    let t: DVBTahsilat
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(t.payer ?? "—").font(.subheadline.weight(.semibold))
+                Spacer()
+                Text(t.amountDisplay).font(.subheadline.weight(.semibold)).monospacedDigit()
+            }
+            HStack {
+                Text(t.paidAt.map { DVBSaat.gun($0, "d MMM yyyy HH:mm") } ?? "—")
+                Spacer()
+                Text("Size gidecek: \(t.payoutDisplay)").monospacedDigit()
+            }
+            .font(.caption).foregroundColor(.secondary)
+            Text("PayTR: \(t.pspFeeDisplay) · Hizmet bedeli: \(t.commissionDisplay)")
+                .font(.caption2).foregroundColor(.secondary).monospacedDigit()
+            HStack(spacing: 6) {
+                Text(t.transfer.code == "gonderildi" ? "✓ \(t.transfer.label)" : t.transfer.label)
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(renk.opacity(0.15))
+                    .foregroundColor(renk)
+                    .clipShape(Capsule())
+                if let n = t.transfer.note { Text(n).font(.caption2).foregroundColor(.secondary) }
+            }
+        }
+        .padding(.vertical, 3)
+    }
+
+    private var renk: Color {
+        switch t.transfer.code {
+        case "gonderildi": return DVBTheme.accent
+        case "bekliyor": return .orange
+        default: return .secondary
+        }
+    }
+}
+
+// MARK: - Hesabım › Ödemelerim (hekim hesabı)
+
+/// DVB-000371 — hekim hesabında "Ödemelerim" hastanın ödediklerini değil, hekimin SİSTEM ÜZERİNDEN ALDIĞI ödemeleri
+/// gösterir (Tahsilat sekmesindeki "Tahsilatlarım" ile aynı liste, `my/doctor/collections`).
+/// Kullanıcı (11 Eki 2026): "ödemelerim gizlenmesin o sistemdeki aldığı ödemeleri vs görsün".
+/// ⛔ Online ödeme kapalıysa satın alma/yükseltme yönlendirmesi YOK (App Store 3.1.1) — yalnız "Yönetim ile görüşün".
+struct DVBHekimOdemelerimView: View {
+    @EnvironmentObject private var session: DVBSession
+
+    @State private var tahsilatlar: [DVBTahsilat] = []
+    @State private var sayfa = 0
+    @State private var sonSayfa = 1
+    @State private var bekleyenToplam: String?
+    @State private var valorGun: Int?
+    @State private var yukleniyor = false
+    @State private var hata: String?
+
+    private var acik: Bool { session.hekim?.odemelerAcik ?? false }
+
+    var body: some View {
+        List {
+            if !acik {
+                DVBStateView(icon: "creditcard", title: "Online ödeme kapalı",
+                             message: "Sistem üzerinden aldığınız ödemeler burada listelenir. Online ödeme hesabınızda açık değil. Yönetim ile görüşün.")
+            } else if let hata, tahsilatlar.isEmpty {
+                DVBStateView(icon: "wifi.exclamationmark", title: "Bilgiler alınamadı", message: hata) {
+                    Task { await yenile() }
+                }
+            } else {
+                Section {
+                    DVBTahsilatOzeti(bekleyenToplam: bekleyenToplam, valorGun: valorGun)
+                }
+                Section {
+                    if yukleniyor && tahsilatlar.isEmpty {
+                        ProgressView().frame(maxWidth: .infinity)
+                    } else if tahsilatlar.isEmpty {
+                        Text("Henüz sistem üzerinden alınmış ödeme yok.").foregroundColor(.secondary)
+                    } else {
+                        ForEach(tahsilatlar) { t in
+                            DVBTahsilatSatiri(t: t)
+                                .onAppear { if t.id == tahsilatlar.last?.id { Task { await yukle(sayfa: sayfa + 1) } } }
+                        }
+                    }
+                } header: {
+                    Text("Aldığım ödemeler")
+                }
+            }
+        }
+        .refreshable { await yenile() }
+        .navigationTitle("Ödemelerim")
+        .task { await yenile() }
+    }
+
+    private func yenile() async {
+        guard acik else { return }
+        sayfa = 0; sonSayfa = 1
+        await yukle(sayfa: 1)
+    }
+
+    private func yukle(sayfa hedef: Int) async {
+        guard let token = session.token, hedef <= sonSayfa, !(yukleniyor && hedef > 1) else { return }
+        yukleniyor = true
+        defer { yukleniyor = false }
+        do {
+            let s: DVBTahsilatSayfasi = try await DVBAPI.shared.get("my/doctor/collections", query: ["page": String(hedef)], token: token)
+            tahsilatlar = hedef == 1 ? s.data : tahsilatlar.tekilEkle(s.data)
+            sayfa = s.page; sonSayfa = s.lastPage
+            bekleyenToplam = s.pendingTotalDisplay
+            valorGun = s.valorDays
             hata = nil
         } catch {
             if let m = DVBError.mesaj(error) { hata = m }
