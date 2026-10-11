@@ -182,7 +182,8 @@ struct DVBHastaTalepleriView: View {
                     .font(.caption).foregroundColor(DVBTheme.accent)
             }
             HStack(spacing: 16) {
-                if let tel = t.phone, let u = URL(string: "tel:\(tel.filter(\.isNumber))") {
+                // DVB-000367 — kanonik 90… numara "+" olmadan aranıyordu (tel:905…, yurt içinde geçersiz).
+                if let u = DVBTelefon.araAdresi(t.phone) {
                     Button { openURL(u) } label: { Label("Ara", systemImage: "phone") }
                 }
                 if let w = t.whatsappUrl, let u = URL(string: w) {
@@ -224,7 +225,7 @@ struct DVBHastaTalepleriView: View {
                 Text(m).font(.caption).lineLimit(4)
             }
             HStack(spacing: 16) {
-                if let tel = l.phone, let u = URL(string: "tel:+\(tel.filter(\.isNumber))") {
+                if let u = DVBTelefon.araAdresi(l.phone) {
                     Button { openURL(u) } label: { Label("Ara", systemImage: "phone") }
                 }
                 if let w = l.whatsappUrl, let u = URL(string: w) {
@@ -272,8 +273,12 @@ struct DVBHastaTalepleriView: View {
         var parcalar: [String] = []
         if let c = t.createdAt { parcalar.append(DVBSaat.gun(c, "d MMMM yyyy, HH:mm")) }
         if let g = t.preferredDate {
-            var tercih = "tercih: " + g
-            if let dilim = t.preferredSlot { tercih += " " + dilim }
+            // DVB-000367 — sunucu tarihi "2026-10-15" diye yollar; ekranda web'deki gibi okunur: "15 Ekim · Sabah (…)".
+            // Okunamazsa geldiği gibi yazılır.
+            let ymd = String(g.prefix(10))
+            let okunur = DVBGunMetni.yaz(ymd, "d MMMM")
+            var tercih = "tercih: " + (okunur == ymd ? g : okunur)
+            if let dilim = t.preferredSlot, !dilim.isEmpty { tercih += " · " + dilim }
             parcalar.append(tercih)
         }
         if let s = t.service { parcalar.append(s) }

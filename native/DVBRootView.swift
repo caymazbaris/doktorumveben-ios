@@ -24,7 +24,9 @@ struct DVBRootView: View {
     @State private var hastaHedefi: DVBHastaHedefSunumu?
 
     /// DVB-000109 — seçili sekme. Bildirim hedefi AYRI SAYFADA değil, ilgili sekmenin kendi gezinmesinde açılır.
-    @State private var sekme: DVBSekme = .ara
+    /// DVB-000368 — hekim kararı cihazda kayıtlıysa açılış Ajanda'dır: oturum hekim bilgisiyle BAŞLADIĞINDA aşağıdaki
+    /// `onChange(of: session.hekim != nil)` tetiklenmez; seçim `.ara`da kalırsa (Ara sekmesi olmayan hekimde) boşa düşerdi.
+    @State private var sekme: DVBSekme = DVBHekimOnbellegi.acilistaHekimVar ? .ajanda : .ara
 
     var body: some View {
         // Tur 241 — CI'da mağaza görüntüsü alınırken kök devralınır (bkz. DVBScreenshot.swift).
@@ -100,7 +102,10 @@ struct DVBRootView: View {
         .environmentObject(session)
         .environmentObject(lock)
         .task {
-            await session.restore()
+            // DVB-000368 — bağlantı "yoktu → geldi" olunca eksik kalan açılış tamamlanır (internet gelince hekim sekmeleri
+            // kendiliğinden döner; eskiden uygulamayı kapatıp açmak gerekiyordu).
+            session.baglantiyiIzle()
+            await session.acilisYuklemesi()
             // DVB-000109 — soğuk açılışta bekleyen dokunuş: oturum (ve hekim modu) kurulduktan SONRA açılır.
             if let bilgi = DVBPush.bekleyenDokunus, let url = DVBPush.adres(bilgi) {
                 DVBPush.bekleyenDokunus = nil
@@ -128,6 +133,9 @@ struct DVBRootView: View {
             // Uygulama arka plana veya görev değiştiriciye geçtiğinde yeniden kilitle.
             // .inactive de dahil: görev değiştirici önizlemesi ekranın fotoğrafını çeker.
             if yeni != .active { lock.arkaPlanaGitti() }
+            // DVB-000368 — öne gelince (ör. Denetim Merkezi'nden uçak modu kapatıldı) açılış eksik kaldıysa tamamlanır.
+            // Her şey yerindeyse `yenidenDene` ağa çıkmaz.
+            if yeni == .active { Task { await session.yenidenDene() } }
         }
     }
 }

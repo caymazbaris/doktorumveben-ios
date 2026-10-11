@@ -154,6 +154,9 @@ struct DVBHekimHastalarView: View {
     @State private var arama = ""
     @State private var yukleniyor = false
     @State private var hata: String?
+    /// DVB-000367 — liste kuşağı: yenileme (arama değişti, aşağı çekme) kuşağı artırır; yanıtı gelene kadar kuşak değişmiş
+    /// istek (ör. eski aramanın sonraki sayfası) yok sayılır, yeni listenin arkasına eklenmez.
+    @State private var kusak = 0
 
     /// DVB-000109 — bildirimden gelen hasta kartı bu sekmenin kendi gezinmesinde açılır.
     @ObservedObject private var gezinme = DVBGezinme.shared
@@ -231,6 +234,7 @@ struct DVBHekimHastalarView: View {
     }
 
     private func yenile() async {
+        kusak += 1
         sayfa = 0; sonSayfa = 1
         await yukle(sayfa: 1, sifirla: true)
     }
@@ -242,6 +246,7 @@ struct DVBHekimHastalarView: View {
 
     private func yukle(sayfa hedef: Int, sifirla: Bool) async {
         guard let token = session.token else { return }
+        let istekKusagi = kusak
         yukleniyor = true
         defer { yukleniyor = false }
         var q = ["page": String(hedef)]
@@ -249,10 +254,13 @@ struct DVBHekimHastalarView: View {
         if !temiz.isEmpty { q["q"] = temiz }
         do {
             let s: DVBHekimHastaSayfasi = try await DVBAPI.shared.get("my/doctor/patients", query: q, token: token)
-            hastalar = sifirla ? s.data : hastalar + s.data
+            guard istekKusagi == kusak else { return }   // DVB-000367 — bu arada liste yenilendi: eski yanıt atılır
+            // DVB-000367 — aynı hasta iki kez görünmesin: önceki sayfada olan kimlik yeniden eklenmez.
+            hastalar = sifirla ? s.data : hastalar.tekilEkle(s.data)
             sayfa = s.page; sonSayfa = s.lastPage; toplam = s.total
             hata = nil
         } catch {
+            guard istekKusagi == kusak else { return }
             if let m = DVBError.mesaj(error) { hata = m }
         }
     }
@@ -302,10 +310,11 @@ struct DVBHekimHastaKartView: View {
 
                 if let tel = k.phone, !tel.isEmpty {
                     Section("İletişim") {
-                        Button { if let u = URL(string: "tel:+\(tel.filter(\.isNumber))") { openURL(u) } } label: {
+                        // DVB-000367 — 0 ile kayıtlı numarada "+0532…" üretilmesin (DVBTelefon).
+                        Button { if let u = DVBTelefon.araAdresi(tel) { openURL(u) } } label: {
                             Label(tel, systemImage: "phone")
                         }
-                        Button { if let u = URL(string: "https://wa.me/\(tel.filter(\.isNumber))") { openURL(u) } } label: {
+                        Button { if let u = DVBTelefon.whatsappAdresi(tel) { openURL(u) } } label: {
                             Label("WhatsApp'tan yaz", systemImage: "message")
                         }
                         if let e = k.email, !e.isEmpty {

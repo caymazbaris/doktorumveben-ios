@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import Network
 
 /// Tur 235 — Oturum durumu. Tek `@StateObject` olarak kökte tutulur, ekranlara
 /// `@EnvironmentObject` ile dağıtılır.
@@ -16,12 +17,27 @@ final class DVBSession: ObservableObject {
 
     /// DVB-000267 — hesap bir hekim profilini yönetiyorsa dolu; uygulama hekim sekmelerine geçer (DVBRootView).
     /// Karar sunucuda (`GET my/doctor`: hekim → 200, diğer herkes → 403); istemci rol tahmini YAPMAZ.
+    /// DVB-000368 — sunucunun SON kararı cihazda saklanır (DVBHekimOnbellegi) ve soğuk açılışta önce o yüklenir: internetsiz
+    /// ya da sunucu yavaşken hekim hasta düzenine düşmez. Saklanan bir tahmin değil, sunucunun en son 200/403 yanıtıdır;
+    /// ilk başarılı `my/doctor` onu yeniden doğrular (403 → silinir, hasta düzenine geçilir).
     @Published private(set) var hekim: DVBHekimBilgisi?
 
     var isLoggedIn: Bool { token != nil }
 
+    /// DVB-000368 — `my/doctor` bu oturumda yanıtlandı mı (200 ya da 403). Önbellekten gelen karar doğrulanmamış sayılır;
+    /// bağlantı gelince / uygulama öne gelince yeniden sorulur.
+    private var hekimDogrulandi = false
+    /// DVB-000368 — otomatik geri yükleme (açılış, bağlantı geldi, öne gelindi) aynı anda bir kez koşar. Açık `restore()`
+    /// çağrıları (profil kaydı, ikinci adım doğrulaması) bu bayrağa TAKILMAZ.
+    private var otomatikYuklemeSuruyor = false
+    private var baglantiIzleyici: NWPathMonitor?
+    private var baglantiVardi: Bool?
+
     init() {
         token = DVBKeychain.read()
+        // DVB-000368 — jeton varsa sunucunun son hekim kararı. Jeton okunamadıysa önbellek SİLİNMEZ (kilitli cihazda
+        // Keychain geçici olarak okunamayabilir); yalnız kullanılmaz.
+        if token != nil { hekim = DVBHekimOnbellegi.oku() }
     }
 
     /// Uygulama açılışında jeton hâlâ geçerli mi? Değilse sessizce düşür.
@@ -29,6 +45,7 @@ final class DVBSession: ObservableObject {
         guard let token else { return }
         do {
             let me: DVBMe = try await DVBAPI.shared.get("auth/me", token: token)
+            guard self.token == token else { return }   // bu arada çıkış yapıldı
             user = me.user
             DVBPush.kaydol()   // DVB-000109 — her açılışta yeniden yaz (jeton/sahip değişmiş olabilir)
             await hekimiYukle()
@@ -36,8 +53,55 @@ final class DVBSession: ObservableObject {
         } catch DVBError.unauthorized {
             signOut()
         } catch {
-            // Ağ yoksa oturumu DÜŞÜRME — çevrimdışı açılışta kullanıcı atılmasın.
+            // Ağ yoksa oturumu DÜŞÜRME — çevrimdışı açılışta kullanıcı atılmasın. DVB-000368: bağlantı gelince ya da
+            // uygulama öne gelince `yenidenDene()` eksik kalanı tamamlar.
         }
+    }
+
+    /// DVB-000368 — açılıştaki geri yükleme (kök görünümün `.task`'ı). Bayrak tutulur: bu sürerken bağlantı/öne gelme
+    /// tetiklemesi ikinci bir geri yükleme başlatmaz.
+    func acilisYuklemesi() async {
+        otomatikYuklemeSuruyor = true
+        defer { otomatikYuklemeSuruyor = false }
+        await restore()
+    }
+
+    /// DVB-000368 — açılışta eksik kalanı tamamla: `auth/me` alınamadıysa tüm geri yükleme, alındı ama `my/doctor`
+    /// yanıtlanmadıysa yalnız hekim bilgisi. Her şey yerindeyse hiçbir şey yapmaz (öne her gelişte ağa çıkılmaz).
+    func yenidenDene() async {
+        guard isLoggedIn, !otomatikYuklemeSuruyor else { return }
+        if user != nil && hekimDogrulandi { return }
+        otomatikYuklemeSuruyor = true
+        defer { otomatikYuklemeSuruyor = false }
+        if user == nil {
+            await restore()
+        } else {
+            await hekimiYukle()
+        }
+    }
+
+    /// DVB-000368 — bağlantı izleyici: yalnız "yoktu → geldi" geçişinde `yenidenDene()`. Kök görünümden bir kez başlatılır
+    /// (init'te değil: ekran görüntüsü kipindeki ikinci oturum nesnesi izleyici açmasın).
+    func baglantiyiIzle() {
+        guard baglantiIzleyici == nil else { return }
+        let izleyici = NWPathMonitor()
+        // Kuyruk ana kuyruk: işleyici hangi yalıtımla çıkarsanırsa çıkarsansın ana iş parçacığında çalışır. Zayıf referans
+        // önce sabite alınır (iç içe kapanışta yakalanan `weak var` eşzamanlılık uyarısı/hatası vermesin).
+        izleyici.pathUpdateHandler = { [weak self] yol in
+            let simdiVar = yol.status == .satisfied
+            guard let oturum = self else { return }
+            Task { @MainActor in oturum.baglantiDegisti(simdiVar) }
+        }
+        izleyici.start(queue: .main)
+        baglantiIzleyici = izleyici
+    }
+
+    private func baglantiDegisti(_ simdiVar: Bool) {
+        let onceki = baglantiVardi
+        baglantiVardi = simdiVar
+        // İlk bildirim anlık durumdur, geçiş değil → tepki yok (açılış yüklemesi zaten koşuyor).
+        guard simdiVar, onceki == false else { return }
+        Task { await yenidenDene() }
     }
 
     /// DVB-000111 — Widget'ın göstereceği veriyi tazele.
@@ -53,28 +117,46 @@ final class DVBSession: ObservableObject {
         guard let token else { return }
         do {
             let ajanda: DVBAgenda = try await DVBAPI.shared.get("my/doctor/agenda", token: token)
+            guard self.token == token else { return }   // DVB-000368 — çıkış yapan hesabın ajandası widget'a yazılmasın
             if let ham = try? JSONEncoder().encode(ajanda) {
                 DVBOfflineStore.yazAjanda(ham)
                 DVBOfflineStore.widgetiYenile()
             }
+        } catch DVBError.forbidden {
+            // DVB-000368 — hekimliği kaldırılan hesapta widget eski ajandayı göstermeye devam etmesin.
+            DVBOfflineStore.temizle()
+            DVBOfflineStore.widgetiYenile()
         } catch {
             // sessiz: ağ yoksa eski önbellek geçerli kalır
         }
     }
 
     /// DVB-000267 — hekim bilgisi + bugünkü sayaçlar. 403 → hekim değil. Ağ hatasında eldeki bilgi KORUNUR
-    /// (çevrimdışı açılışta hekim hasta sekmelerine düşmesin).
+    /// (çevrimdışı açılışta hekim hasta sekmelerine düşmesin). DVB-000368: 200 cihaza yazılır, 403 siler — soğuk açılışta
+    /// da "eldeki bilgi" var.
     func hekimiYukle() async {
-        guard let token else { hekim = nil; return }
+        guard let token else { hekimiBirak(); return }
         do {
-            hekim = try await DVBAPI.shared.get("my/doctor", token: token)
+            let bilgi: DVBHekimBilgisi = try await DVBAPI.shared.get("my/doctor", token: token)
+            guard self.token == token else { return }   // bu arada çıkış yapıldı: karar yazılmaz
+            hekim = bilgi
+            hekimDogrulandi = true
+            DVBHekimOnbellegi.yaz(bilgi)
         } catch DVBError.forbidden {
-            hekim = nil
+            guard self.token == token else { return }
+            hekimiBirak()
+            hekimDogrulandi = true
         } catch DVBError.unauthorized {
             signOut()
         } catch {
-            // sessiz
+            // sessiz — bellekteki (ya da önbellekten gelen) karar korunur; bağlantı gelince yeniden denenir (DVB-000368)
         }
+    }
+
+    /// DVB-000368 — hekim kararını bellekten ve cihazdan kaldır.
+    private func hekimiBirak() {
+        hekim = nil
+        DVBHekimOnbellegi.sil()
     }
 
     /// Şifreyle giriş. İki adım gereken hesapta (web ile aynı karar — DVB-000274) jeton YERİNE bekleyen ikinci adım
@@ -98,6 +180,7 @@ final class DVBSession: ObservableObject {
         }
 
         DVBWebOturum.temizle()   // DVB-000273 — aynı cihazda önceki kişinin web oturumu kalmasın
+        yeniOturumOncesiTemizle()   // DVB-000368
         DVBKeychain.save(token)
         self.token = token
         self.user = res.user
@@ -117,6 +200,7 @@ final class DVBSession: ObservableObject {
         ])
 
         DVBWebOturum.temizle()   // DVB-000273 — aynı cihazda önceki kişinin web oturumu kalmasın
+        yeniOturumOncesiTemizle()   // DVB-000368
         DVBKeychain.save(res.token)
         self.token = res.token
         await restore()          // auth/me + push kaydı + hekim modu + widget verisi
@@ -153,6 +237,7 @@ final class DVBSession: ObservableObject {
         }
 
         DVBWebOturum.temizle()   // DVB-000273 — aynı cihazda önceki kişinin web oturumu kalmasın
+        yeniOturumOncesiTemizle()   // DVB-000368
         DVBKeychain.save(token)
         self.token = token
         self.user = res.user
@@ -187,8 +272,18 @@ final class DVBSession: ObservableObject {
         DVBWebOturum.temizle()
         token = nil
         user = nil
-        hekim = nil
+        hekimiBirak()   // DVB-000368 — saklanan hekim kararı da silinir (aynı cihaza giren hasta hekim düzenini görmesin)
+        hekimDogrulandi = false
         unreadCount = 0
+        // DVB-000368 — widget önbelleği de temizlenir: çıkış yapan hekimin (maskeli) ajandası ana ekranda kalmasın.
+        DVBOfflineStore.temizle()
+        DVBOfflineStore.widgetiYenile()
+    }
+
+    /// DVB-000368 — yeni jeton yazılmadan önce önceki oturumdan kalabilecek hekim kararı silinir (ek güvence).
+    private func yeniOturumOncesiTemizle() {
+        hekimiBirak()
+        hekimDogrulandi = false
     }
 
     private func deviceName() -> String {
@@ -197,6 +292,38 @@ final class DVBSession: ObservableObject {
         #else
         return "ios"
         #endif
+    }
+}
+
+/// DVB-000368 — SUNUCUNUN SON HEKİM KARARI cihazda: `UserDefaults.standard` (App Group DEĞİL — widget bu bilgiyi
+/// kullanmaz; bu yüzden DVBOfflineStore'a da konmaz, o dosya widget hedefine de derleniyor).
+/// Saklanan yalnız `my/doctor` yanıtı: hekimin kendi adı/branşı/avatarı, özellik bayrakları, sayaçlar. Hasta verisi YOK.
+/// Yazılır: `my/doctor` 200. Silinir: 403, çıkış, yeni giriş. Çözülemeyen kayıt silinir.
+enum DVBHekimOnbellegi {
+    private static let anahtar = "dvb.hekim.bilgisi"
+
+    static func oku() -> DVBHekimBilgisi? {
+        guard let ham = UserDefaults.standard.data(forKey: anahtar) else { return nil }
+        guard let bilgi = try? JSONDecoder().decode(DVBHekimBilgisi.self, from: ham) else {
+            sil()
+            return nil
+        }
+        return bilgi
+    }
+
+    static func yaz(_ bilgi: DVBHekimBilgisi) {
+        guard let ham = try? JSONEncoder().encode(bilgi) else { return }
+        UserDefaults.standard.set(ham, forKey: anahtar)
+    }
+
+    static func sil() {
+        UserDefaults.standard.removeObject(forKey: anahtar)
+    }
+
+    /// Açılışta ilk sekme seçimi için (kök görünümün durumu oturum nesnesinden önce kurulur): jeton + kayıtlı hekim kararı
+    /// var mı. DVBSession.init ile aynı koşul.
+    static var acilistaHekimVar: Bool {
+        DVBKeychain.read() != nil && oku() != nil
     }
 }
 

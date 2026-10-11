@@ -13,7 +13,9 @@ import SwiftUI
 // ⚠ Hasta adı/telefonu burada AÇIK (kilitli uygulama içi ekran). Ana ekran widget'ı bilerek MASKELİ; ikisi ayrı uçlar.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-struct DVBHekimBilgisi: Decodable {
+/// DVB-000368 — `Codable`: sunucunun son kararı cihazda saklanır (DVBHekimOnbellegi, DVBSession.swift). Kodlama ve çözme
+/// aynı CodingKeys ile simetrik; tarih alanı yok. ⛔ Hasta verisi taşımaz — yalnız hekimin kendi bilgisi, bayraklar, sayaçlar.
+struct DVBHekimBilgisi: Codable {
     let doctor: Hekim
     let isProvider: Bool?
     let billingOnly: Bool?
@@ -23,7 +25,7 @@ struct DVBHekimBilgisi: Decodable {
     let readOnly: Bool?
     let features: Ozellikler?
 
-    struct Ozellikler: Decodable {
+    struct Ozellikler: Codable {
         let patients: Bool?
         let questions: Bool?
         let payments: Bool?
@@ -93,7 +95,7 @@ struct DVBHekimBilgisi: Decodable {
                 f.recurring, f.accountingSetup, f.incomingInvoices, f.staff, f.leads, f.secretaries].contains { $0 == true }
     }
 
-    struct Hekim: Decodable {
+    struct Hekim: Codable {
         let id: Int
         let name: String?
         let slug: String?
@@ -132,6 +134,9 @@ struct DVBHekimRandevu: Decodable, Identifiable {
     /// DVB-000341 — taşıma ekranı boş saatleri bu hizmetin süresiyle ister; online görüşmenin yönetici bağlantısı.
     let serviceId: Int?
     let onlineMeeting: DVBOnlineGorusme?
+    /// DVB-000369 — ekip kliniğinde randevunun sağlayıcısı; taşıma ekranı boş saatleri bu sağlayıcıya göre ister.
+    /// Eski sunucu göndermez → nil → eskisi gibi (klinik geneli liste).
+    let staffId: Int?
     // Yalnız detayda gelir.
     let notes: String?
     let cancelReason: String?
@@ -152,6 +157,7 @@ struct DVBHekimRandevu: Decodable, Identifiable {
         case patientEmail = "patient_email"
         case serviceId = "service_id"
         case onlineMeeting = "online_meeting"
+        case staffId = "staff_id"
     }
 
     /// DVB-000341 — taşınabilir mi (web ile aynı: yalnız etkin randevu; muhasebe görünümüne işlem sunulmaz → actions boş).
@@ -207,6 +213,56 @@ enum DVBSaat {
         c.locale = Locale(identifier: "tr_TR")
         c.firstWeekday = 2   // Pazartesi
         return c
+    }
+}
+
+/// DVB-000367 — Hekim ekranlarındaki "Ara" ve "WhatsApp" düğmeleri için TEK KAPI. Sunucudaki `Phone::normalize`'ın
+/// karşılığı: 00 öneki, "90 0532…" yazım hatası, 0 + 10 hane ve ülke kodsuz 10 hane → 90XXXXXXXXXX. Eskiden rakamların
+/// başına doğrudan "+" ekleniyordu: 0 ile kayıtlı numarada tel:+0532… (geçersiz) ve wa.me/0532… açılıyordu; site
+/// talebinde ise kanonik numara "+" olmadan (tel:905…) aranıyordu.
+/// ⛔ Açıkça yabancı numaraya (+33…, 0049…) 0/10 hane kuralı UYGULANMAZ (DVB-000204: +65 6123 4567 de 10 hanedir).
+/// Sunucu numarayı "+90 532 …" ya da "0532 …" biçiminde verse de sonuç aynıdır.
+enum DVBTelefon {
+    /// Rakamlar ("+" olmadan) ve numaranın ülke kodlu olup olmadığı. Boş girdide nil.
+    static func coz(_ ham: String?) -> (rakam: String, ulkeKodlu: Bool)? {
+        guard let ham else { return nil }
+        let metin = ham.trimmingCharacters(in: .whitespacesAndNewlines)
+        var d = String(metin.filter { $0.isASCII && $0.isNumber })
+        let artili = metin.hasPrefix("+") && !d.hasPrefix("0")
+        let ciftSifir = d.hasPrefix("00")
+        if ciftSifir { d = String(d.dropFirst(2)) }
+        guard !d.isEmpty else { return nil }
+        if d.count == 12 && d.hasPrefix("90") { return (d, true) }                    // zaten kanonik
+        if d.count == 13 && d.hasPrefix("900") { return ("90" + String(d.dropFirst(3)), true) }  // "90 0532…"
+        if artili || ciftSifir { return (d, true) }                                    // açık yabancı numara: dokunma
+        if d.count == 11 && d.hasPrefix("0") { return ("90" + String(d.dropFirst()), true) }    // 0 5XX XXX XX XX
+        if d.count == 10 { return ("90" + d, true) }                                   // ülke kodsuz TR numarası
+        // 10 haneden uzun ve 0 ile başlamayan: ülke kodlu kayıt (WhatsApp'tan gelen yabancı numara). Kısa: kısa numara.
+        return (d, d.count > 10)
+    }
+
+    /// "Ara" adresi: ülke kodlu numara `tel:+…`, kısa numara (444 1 444 gibi) olduğu gibi.
+    static func araAdresi(_ ham: String?) -> URL? {
+        guard let t = coz(ham) else { return nil }
+        return URL(string: (t.ulkeKodlu ? "tel:+" : "tel:") + t.rakam)
+    }
+
+    /// wa.me yolu için uluslararası rakamlar.
+    static func whatsappRakam(_ ham: String?) -> String? { coz(ham)?.rakam }
+
+    static func whatsappAdresi(_ ham: String?) -> URL? {
+        guard let r = whatsappRakam(ham) else { return nil }
+        return URL(string: "https://wa.me/" + r)
+    }
+}
+
+extension Array where Element: Identifiable {
+    /// DVB-000367 — sayfalı listede sonraki sayfayı eklerken zaten listede olan kimlikler atlanır. Sunucu sırası eşit
+    /// zamanlı satırlarda sayfalar arasında kayabiliyor; kaydırırken yeni eklenen kayıt da ofseti kaydırır → aynı satır
+    /// iki kez görünüyordu.
+    func tekilEkle(_ yeni: [Element]) -> [Element] {
+        let mevcut = Set(map(\.id))
+        return self + yeni.filter { !mevcut.contains($0.id) }
     }
 }
 
@@ -340,6 +396,11 @@ struct DVBHekimAjandaView: View {
                 }
             }
             .task { await yukle() }
+            // DVB-000368 — çevrimdışı açılışta ajanda alınamadıysa, bağlantı gelip oturum tamamlanınca kendiliğinden
+            // yeniden istenir (her açılışta çift istek olmasın diye yalnız hata varken).
+            .onChange(of: session.user != nil) { girisTamam in
+                if girisTamam && hata != nil { Task { await yukle() } }
+            }
         }
         .navigationViewStyle(.stack)
         .sheet(isPresented: $yeniRandevuAcik) {
@@ -548,10 +609,11 @@ struct DVBHekimRandevuDetayView: View {
 
             if let tel = r.patientPhone, !tel.isEmpty {
                 Section("Hastaya ulaş") {
-                    Button { if let u = URL(string: "tel:+\(tel.filter(\.isNumber))") { openURL(u) } } label: {
+                    // DVB-000367 — 0 ile kayıtlı numarada "+0532…" üretilmesin.
+                    Button { if let u = DVBTelefon.araAdresi(tel) { openURL(u) } } label: {
                         Label("Ara", systemImage: "phone")
                     }
-                    Button { if let u = URL(string: "https://wa.me/\(tel.filter(\.isNumber))") { openURL(u) } } label: {
+                    Button { if let u = DVBTelefon.whatsappAdresi(tel) { openURL(u) } } label: {
                         Label("WhatsApp'tan yaz", systemImage: "message")
                     }
                 }

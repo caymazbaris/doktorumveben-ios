@@ -112,6 +112,16 @@ struct DVBHekimRandevuEkleView: View {
     /// Kayıtlı hasta seçimi Hastalar özelliğine bağlı (muhasebe/kapalı pakette hasta listesi yok → yalnız yeni hasta).
     private var kayitliHastaAcik: Bool { session.hekim?.hastalarAcik ?? false }
 
+    /// DVB-000367 — eskiden "web panelinden ekleyebilirsiniz" yazıyordu; uygulamada artık Hesabım › Hekim › Hizmetler var.
+    /// Liste yalnız etkin VE randevuya açık hizmetlerden gelir: boş liste "hizmet var ama kapalı" da demek olabilir.
+    /// Hizmet yönetimi açık değilse (ör. sekreter) uygulamadaki menüye yönlendirilmez.
+    private var hizmetYokMetni: String {
+        if session.hekim?.hizmetlerAcik == true {
+            return "Randevuya açık hizmetiniz yok. Hesabım › Hekim › Hizmetler'den hizmet ekleyin; var olan hizmet kapalıysa \"Aç\" ile etkinleştirip düzenleme ekranında \"Randevuya açık\" seçeneğini açın."
+        }
+        return "Randevuya açık hizmet yok. Hizmet eklemek ya da kapalı bir hizmeti açmak için hekime veya klinik sahibine başvurun; hiç hizmet tanımlı değilse web panelinde Takvim'deki \"Randevu Ekle\" penceresinden de tanımlanabilir."
+    }
+
     var body: some View {
         NavigationView {
             Group {
@@ -162,7 +172,7 @@ struct DVBHekimRandevuEkleView: View {
 
             Section("Hizmet") {
                 if s.services.isEmpty {
-                    Text("Randevuya açık hizmetiniz yok. Hizmetlerinizi web panelinden ekleyebilirsiniz.")
+                    Text(hizmetYokMetni)
                         .font(.footnote).foregroundColor(.secondary)
                 } else {
                     Picker("Hizmet", selection: $hizmetId) {

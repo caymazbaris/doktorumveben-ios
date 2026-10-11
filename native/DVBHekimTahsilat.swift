@@ -230,6 +230,9 @@ struct DVBHekimTahsilatView: View {
     @State private var yeniAcik = false
     @State private var paylasilan: DVBPaylasimOgesi?
     @State private var iptalEdilecek: DVBOdemeLinki?
+    /// DVB-000366 — işlem sonucu (ör. iptal reddi) uyarıda gösterilir. Eskiden iptal hatası `hata`ya yazılıyordu; o da
+    /// yalnız liste BOŞKEN görünüyordu → iptal edilecek link listede olduğundan hata hiç görünmüyordu.
+    @State private var bilgi: String?
 
     var body: some View {
         NavigationView {
@@ -286,6 +289,13 @@ struct DVBHekimTahsilatView: View {
             }
         }
         .navigationViewStyle(.stack)
+        // DVB-000366 — iptal onayı listede; sonuç uyarısı ayrı katmanda (aynı görünüme iki `alert` eski iOS'ta birini
+        // susturabiliyordu).
+        .alert("Tahsilat", isPresented: Binding(get: { bilgi != nil }, set: { if !$0 { bilgi = nil } })) {
+            Button("Tamam", role: .cancel) {}
+        } message: {
+            Text(bilgi ?? "")
+        }
     }
 
     // MARK: Ödeme linkleri
@@ -307,7 +317,8 @@ struct DVBHekimTahsilatView: View {
                 }
             }
         } footer: {
-            Text("Linke dokunduğunuzda ödeme sayfası her zaman tarayıcıda açılır. Hasta ödeyince tutar Tahsilatlarım'a düşer.")
+            // DVB-000367 — satırın kendisine dokunmak bir şey açmıyor; not gerçeği söylesin.
+            Text("\"Tarayıcıda aç\" düğmesiyle ödeme sayfası her zaman tarayıcıda açılır. Linki kopyalamak ya da iptal etmek için satıra basılı tutun. Hasta ödeyince tutar Tahsilatlarım'a düşer.")
         }
     }
 
@@ -357,7 +368,8 @@ struct DVBHekimTahsilatView: View {
     /// açılır; ödeme sayfası orada da tarayıcıda açılır.
     private func whatsapp(_ l: DVBOdemeLinki) {
         var bilesen = URLComponents(string: "https://wa.me/")!
-        if let tel = l.patientPhone?.filter(\.isNumber), !tel.isEmpty { bilesen.path = "/" + tel }
+        // DVB-000367 — numara uluslararası biçime çevrilir (0 ile kayıtlı numarada wa.me/0532… açılıyordu).
+        if let tel = DVBTelefon.whatsappRakam(l.patientPhone) { bilesen.path = "/" + tel }
         bilesen.queryItems = [URLQueryItem(name: "text", value: l.shareText)]
         if let u = bilesen.url { openURL(u) }
     }
@@ -450,7 +462,8 @@ struct DVBHekimTahsilatView: View {
         defer { yukleniyor = false }
         do {
             let s: DVBOdemeLinkiSayfasi = try await DVBAPI.shared.get("my/doctor/payment-links", query: ["page": String(sayfa)], token: token)
-            linkler = sayfa == 1 ? s.data : linkler + s.data
+            // DVB-000367 — sonraki sayfada zaten listede olan kayıt yeniden eklenmez (sayfalar arası kayma).
+            linkler = sayfa == 1 ? s.data : linkler.tekilEkle(s.data)
             linkSayfa = s.page; linkSonSayfa = s.lastPage
             hata = nil
         } catch {
@@ -464,7 +477,7 @@ struct DVBHekimTahsilatView: View {
         defer { yukleniyor = false }
         do {
             let s: DVBTahsilatSayfasi = try await DVBAPI.shared.get("my/doctor/collections", query: ["page": String(sayfa)], token: token)
-            tahsilatlar = sayfa == 1 ? s.data : tahsilatlar + s.data
+            tahsilatlar = sayfa == 1 ? s.data : tahsilatlar.tekilEkle(s.data)
             tahsilatSayfa = s.page; tahsilatSonSayfa = s.lastPage
             bekleyenToplam = s.pendingTotalDisplay
             valorGun = s.valorDays
@@ -476,12 +489,18 @@ struct DVBHekimTahsilatView: View {
 
     private func iptal(_ l: DVBOdemeLinki) async {
         guard let token = session.token else { return }
+        mesaj = nil   // DVB-000366 — önceki "Link kopyalandı." gibi bayat bilgi kalmasın
         do {
             let c: DVBOdemeLinkiCevabi = try await DVBAPI.shared.post("my/doctor/payment-links/\(l.id)/cancel", token: token)
             if let i = linkler.firstIndex(where: { $0.id == l.id }) { linkler[i] = c.link }
             mesaj = c.message
         } catch {
-            if let m = DVBError.mesaj(error) { hata = m }
+            // DVB-000366 — ör. link bu arada ödenmiş: sunucu 422 + "Yalnız bekleyen link iptal edilebilir (Ödendi)."
+            // Mesaj uyarıda gösterilir ve liste tazelenir (satır "Bekliyor"da kalmasın).
+            guard let m = DVBError.mesaj(error) else { return }
+            bilgi = m
+            linkSayfa = 0; linkSonSayfa = 1
+            await linkleriYukle(sayfa: 1)
         }
     }
 }

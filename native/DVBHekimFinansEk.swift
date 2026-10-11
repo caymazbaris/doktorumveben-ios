@@ -920,6 +920,10 @@ struct DVBGelenFaturalarView: View {
                 }
                 .searchable(text: $arama, prompt: "Gönderen, VKN ya da belge no")
                 .onSubmit(of: .search) { Task { await yukle(sayfa: 1) } }
+                // DVB-000367 — arama X ya da Vazgeç ile temizlenince liste kendiliğinden tam listeye döner.
+                .onChange(of: arama) { yeni in
+                    if yeni.isEmpty { Task { await yukle(sayfa: 1) } }
+                }
                 .refreshable { await yukle(sayfa: 1) }
             } else if let hata {
                 DVBStateView(icon: "tray.and.arrow.down", title: "Gelen faturalar alınamadı", message: hata) { Task { await yukle(sayfa: 1) } }

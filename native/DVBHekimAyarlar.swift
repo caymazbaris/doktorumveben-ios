@@ -27,26 +27,36 @@ struct DVBHekimYonetimView: View {
     var body: some View {
         List {
             if let f = session.hekim?.features {
-                Section("Muayenehane") {
-                    if f.locations == true { satir("Adreslerim", "mappin.and.ellipse", DVBAdreslerView()) }
-                    if f.insurances == true { satir("Anlaşmalı sigortalar", "cross.case", DVBSigortalarView()) }
-                    if f.bookingSettings == true { satir("Randevu ve bildirim ayarları", "slider.horizontal.3", DVBRandevuAyarlariView()) }
-                    if f.bookingPage == true { satir("Randevu sayfam (bağlantı ve QR)", "qrcode", DVBRandevuSayfasiView()) }
+                // DVB-000367 — SwiftUI boş Section'ın başlığını yine çizer (ör. muhasebe yetkisi olmayan sekreterde altı boş
+                // "Finans"). Bölüm, satırlarından en az biri açıksa çizilir (web menüsü de önce süzüp sonra grupluyor).
+                if f.muayenehaneBolumu {
+                    Section("Muayenehane") {
+                        if f.locations == true { satir("Adreslerim", "mappin.and.ellipse", DVBAdreslerView()) }
+                        if f.insurances == true { satir("Anlaşmalı sigortalar", "cross.case", DVBSigortalarView()) }
+                        if f.bookingSettings == true { satir("Randevu ve bildirim ayarları", "slider.horizontal.3", DVBRandevuAyarlariView()) }
+                        if f.bookingPage == true { satir("Randevu sayfam (bağlantı ve QR)", "qrcode", DVBRandevuSayfasiView()) }
+                    }
                 }
-                Section("Raporlar") {
-                    if f.reports == true { satir("Raporlar", "chart.bar", DVBRaporlarView()) }
-                    if f.nps == true { satir("Hasta memnuniyeti", "face.smiling", DVBMemnuniyetView()) }
+                if f.raporlarBolumu {
+                    Section("Raporlar") {
+                        if f.reports == true { satir("Raporlar", "chart.bar", DVBRaporlarView()) }
+                        if f.nps == true { satir("Hasta memnuniyeti", "face.smiling", DVBMemnuniyetView()) }
+                    }
                 }
-                Section("Finans") {
-                    if f.packages == true { satir("Seans paketleri", "square.stack.3d.up", DVBPaketlerView()) }
-                    if f.recurring == true { satir("Sabit giderler", "arrow.triangle.2.circlepath", DVBSabitGiderlerView()) }
-                    if f.accountingSetup == true { satir("Muhasebe tanımları", "list.bullet.indent", DVBMuhasebeTanimlariView()) }
-                    if f.incomingInvoices == true { satir("Gelen faturalar", "tray.and.arrow.down", DVBGelenFaturalarView()) }
+                if f.finansBolumu {
+                    Section("Finans") {
+                        if f.packages == true { satir("Seans paketleri", "square.stack.3d.up", DVBPaketlerView()) }
+                        if f.recurring == true { satir("Sabit giderler", "arrow.triangle.2.circlepath", DVBSabitGiderlerView()) }
+                        if f.accountingSetup == true { satir("Muhasebe tanımları", "list.bullet.indent", DVBMuhasebeTanimlariView()) }
+                        if f.incomingInvoices == true { satir("Gelen faturalar", "tray.and.arrow.down", DVBGelenFaturalarView()) }
+                    }
                 }
-                Section("Ekip ve satış") {
-                    if f.staff == true { satir("Personel", "person.3", DVBPersonelView()) }
-                    if f.secretaries == true { satir("Sekreter yetkileri", "person.badge.key", DVBSekreterlerView()) }
-                    if f.leads == true { satir("Satış adayları", "person.crop.circle.badge.plus", DVBSatisAdaylariView()) }
+                if f.ekipBolumu {
+                    Section("Ekip ve satış") {
+                        if f.staff == true { satir("Personel", "person.3", DVBPersonelView()) }
+                        if f.secretaries == true { satir("Sekreter yetkileri", "person.badge.key", DVBSekreterlerView()) }
+                        if f.leads == true { satir("Satış adayları", "person.crop.circle.badge.plus", DVBSatisAdaylariView()) }
+                    }
                 }
                 if f.issues == true {
                     Section {
@@ -64,6 +74,14 @@ struct DVBHekimYonetimView: View {
     private func satir<V: View>(_ baslik: String, _ simge: String, _ hedef: V) -> some View {
         NavigationLink(destination: hedef) { Label(baslik, systemImage: simge) }
     }
+}
+
+/// DVB-000367 — Klinik yönetimi menüsünde bölüm başlığı yalnız altında en az bir satır varsa çizilir.
+private extension DVBHekimBilgisi.Ozellikler {
+    var muayenehaneBolumu: Bool { [locations, insurances, bookingSettings, bookingPage].contains { $0 == true } }
+    var raporlarBolumu: Bool { [reports, nps].contains { $0 == true } }
+    var finansBolumu: Bool { [packages, recurring, accountingSetup, incomingInvoices].contains { $0 == true } }
+    var ekipBolumu: Bool { [staff, secretaries, leads].contains { $0 == true } }
 }
 
 // MARK: - Ortak biçim
@@ -487,6 +505,8 @@ struct DVBRandevuAyarlariView: View {
     @State private var bilgi: String?
     @State private var calisiyor = false
     @State private var kuralAcik = false
+    /// DVB-000366 — kaydırıp "Sil" denince önce onay sorulur (Adreslerim'deki silme gibi).
+    @State private var silinecekKural: DVBRandevuAyarlari.Kural?
 
     @State private var otoOnay = false
     @State private var enErkenGun = 1
@@ -524,6 +544,15 @@ struct DVBRandevuAyarlariView: View {
         .sheet(isPresented: $kuralAcik) {
             DVBOnayKuraliEkleView { yeni in veri = yeni; bilgi = yeni.message }.environmentObject(session)
         }
+        .confirmationDialog("Aralık kaldırılsın mı?", isPresented: Binding(get: { silinecekKural != nil }, set: { if !$0 { silinecekKural = nil } }), titleVisibility: .visible) {
+            Button("Kaldır", role: .destructive) {
+                if let k = silinecekKural { Task { await kuralSil(k.id) } }
+                silinecekKural = nil
+            }
+            Button("Vazgeç", role: .cancel) { silinecekKural = nil }
+        } message: {
+            Text(silinecekKural.map { "\($0.day) · \($0.range)" } ?? "")
+        }
     }
 
     private func form(_ v: DVBRandevuAyarlari) -> some View {
@@ -548,8 +577,11 @@ struct DVBRandevuAyarlariView: View {
                         Text("\(k.day) · \(k.range)").font(.subheadline)
                         if let n = k.note, !n.isEmpty { Text(n).font(.caption).foregroundColor(.secondary) }
                     }
+                    // DVB-000366 — doğrudan silmez, onay sorar. Rol yerine kırmızı renk: yıkıcı rollü kaydırma düğmesi iOS 15'te
+                    // satırı onay beklemeden görsel olarak kaldırabiliyor.
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) { Task { await kuralSil(k.id) } } label: { Label("Sil", systemImage: "trash") }
+                        Button { silinecekKural = k } label: { Label("Sil", systemImage: "trash") }
+                            .tint(.red)
                     }
                 }
                 Button { kuralAcik = true } label: { Label("Aralık ekle", systemImage: "plus.circle") }
@@ -631,7 +663,9 @@ struct DVBRandevuAyarlariView: View {
         guard let token = session.token else { return }
         do {
             let v: DVBRandevuAyarlari = try await DVBAPI.shared.delete("my/doctor/booking-settings/approval-rules/\(id)", token: token)
+            // DVB-000366 — sonuç gösterilir. `doldur` ÇAĞRILMAZ: kaydedilmemiş anahtar değişiklikleri korunur.
             veri = v
+            bilgi = v.message ?? "Aralık kaldırıldı."
         } catch {
             if let m = DVBError.mesaj(error) { bilgi = m }
         }
@@ -1045,6 +1079,9 @@ struct DVBRaporlarView: View {
     @State private var hata: String?
     @State private var onizlenen: DVBYerelDosya?
     @State private var pdfHazirlaniyor = false
+    /// DVB-000366 — PDF açılamazsa uyarı. Eskiden hata `hata`ya yazılıyordu; o yalnız rapor YOKKEN görünür, PDF düğmesi
+    /// ise yalnız rapor VARKEN durur → mesaj hiç çıkmıyordu.
+    @State private var bilgi: String?
 
     private var anahtar: String { DVBYonBicim.ymd(bas) + "|" + DVBYonBicim.ymd(bit) }
 
@@ -1088,6 +1125,9 @@ struct DVBRaporlarView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task(id: anahtar) { await yukle() }
         .sheet(item: $onizlenen) { d in DVBBelgeOnizleme(dosya: d.url, kapat: { onizlenen = nil }) }
+        .alert("Raporlar", isPresented: Binding(get: { bilgi != nil }, set: { if !$0 { bilgi = nil } })) {
+            Button("Tamam", role: .cancel) {}
+        } message: { Text(bilgi ?? "") }
     }
 
     private func satir(_ e: String, _ d: String) -> some View {
@@ -1098,6 +1138,10 @@ struct DVBRaporlarView: View {
 
     private func yukle() async {
         guard let token = session.token else { return }
+        // DVB-000366 — tarih değişince önceki aralığın sayıları yeni tarihlerin altında kalmasın: yüklenirken gösterge,
+        // alınamazsa hata görünür.
+        rapor = nil
+        hata = nil
         do {
             rapor = try await DVBAPI.shared.get("my/doctor/reports", query: sorgu, token: token)
             hata = nil
@@ -1116,7 +1160,7 @@ struct DVBRaporlarView: View {
             try veri.write(to: yol, options: .atomic)
             onizlenen = DVBYerelDosya(url: yol)
         } catch {
-            if let m = DVBError.mesaj(error) { hata = m }
+            if let m = DVBError.mesaj(error) { bilgi = m }
         }
     }
 }

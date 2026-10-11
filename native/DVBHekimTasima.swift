@@ -146,10 +146,13 @@ struct DVBHekimTasimaView: View {
         guard let token = session.token, let hizmet = randevu.serviceId else { saatler = []; return }
         saatlerYukleniyor = true
         defer { saatlerYukleniyor = false }
+        var q = ["date": DVBSaat.anahtar(gun), "service_id": String(hizmet)]
+        // DVB-000369 — ekip kliniğinde boş saatler randevunun SAĞLAYICISINA göre istenir (Yeni randevu ekranı gibi).
+        // Gönderilmezse sunucu klinik geneline göre hesaplıyordu: sağlayıcının çalışmadığı saat listeleniyor, başka
+        // sağlayıcının dolu saati gizleniyor, herhangi birinin tam gün izni günü boşaltıyordu. Alan gelmezse eskisi gibi.
+        if let s = randevu.staffId { q["staff_id"] = String(s) }
         do {
-            let c: DVBTasimaSaatleri = try await DVBAPI.shared.get(
-                "my/doctor/booking-slots", query: ["date": DVBSaat.anahtar(gun), "service_id": String(hizmet)], token: token
-            )
+            let c: DVBTasimaSaatleri = try await DVBAPI.shared.get("my/doctor/booking-slots", query: q, token: token)
             saatler = c.slots
             saatHatasi = nil
         } catch {

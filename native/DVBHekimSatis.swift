@@ -259,8 +259,9 @@ private struct DVBAdayAyrintiView: View {
                     Section {
                         if let t = a.lead.phone, !t.isEmpty {
                             HStack(spacing: 16) {
-                                Button { if let u = URL(string: "tel:\(t.filter(\.isNumber))") { openURL(u) } } label: { Label("Ara", systemImage: "phone") }
-                                Button { if let u = URL(string: "https://wa.me/\(DVBAdayTelefon.wa(t))") { openURL(u) } } label: { Label("WhatsApp", systemImage: "message") }
+                                // DVB-000367 — ortak telefon kapısı (DVBTelefon; eski DVBAdayTelefon 00 önekini bozuyordu).
+                                Button { if let u = DVBTelefon.araAdresi(t) { openURL(u) } } label: { Label("Ara", systemImage: "phone") }
+                                Button { if let u = DVBTelefon.whatsappAdresi(t) { openURL(u) } } label: { Label("WhatsApp", systemImage: "message") }
                             }
                             .buttonStyle(.borderless)
                         }
@@ -403,15 +404,7 @@ private struct DVBAdayAyrintiView: View {
     }
 }
 
-enum DVBAdayTelefon {
-    /// wa.me için uluslararası rakamlar: 05xx… → 905xx…, 5xx… → 905xx….
-    static func wa(_ t: String) -> String {
-        var r = t.filter(\.isNumber)
-        if r.hasPrefix("0") { r.removeFirst() }
-        if r.count == 10 { r = "90" + r }
-        return r
-    }
-}
+// DVB-000367 — `DVBAdayTelefon` kaldırıldı; tüm Ara/WhatsApp düğmeleri `DVBTelefon`u (DVBHekimModu.swift) kullanır.
 
 private struct DVBAdayFormView: View {
     let aday: DVBAdayAyrintisi.Aday?

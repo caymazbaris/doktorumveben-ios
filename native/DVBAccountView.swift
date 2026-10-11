@@ -19,6 +19,9 @@ struct DVBAccountView: View {
     @State private var kod = ""
     @State private var kurtarmaKoduModu = false
     @State private var confirmDelete = false
+    /// DVB-000366 — hesap silme reddi/hatası (ör. hekim hesabı: sunucu 422). Eskiden `error`a yazılıyordu; o yalnız
+    /// girişsiz formlarda görünüyor → girişli ekranda mesaj çıkmıyor, çıkış yapınca giriş formunda bayat kalıyordu.
+    @State private var silmeHatasi: String?
     @State private var webSheet: DVBIdentifiableURL?
     /// DVB-000264 — bildirimler artık sekme değil; buradan da açılır.
     @State private var bildirimlerAcik = false
@@ -40,6 +43,15 @@ struct DVBAccountView: View {
             .navigationTitle("Hesabım")
             .sheet(item: $webSheet) { item in
                 DVBWebSheet(url: item.url, title: "Doktorumveben")
+            }
+            // DVB-000366 — silme onayı listede; sonuç uyarısı ayrı katmanda.
+            .alert("Hesap silinemedi", isPresented: Binding(get: { silmeHatasi != nil }, set: { if !$0 { silmeHatasi = nil } })) {
+                Button("Destekle iletişime geç") {
+                    webSheet = .init(url: DVBConfig.webBase.appendingPathComponent("hesabim/sorun-bildir"))
+                }
+                Button("Tamam", role: .cancel) {}
+            } message: {
+                Text(silmeHatasi ?? "")
             }
             .background(
                 VStack {
@@ -514,10 +526,10 @@ struct DVBAccountView: View {
                 session.signOut()
             } else {
                 let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-                error = obj?["message"] as? String ?? "Hesap silinemedi."
+                silmeHatasi = obj?["message"] as? String ?? "Hesap silinemedi."
             }
         } catch {
-            self.error = DVBError.offline.errorDescription
+            silmeHatasi = DVBError.offline.errorDescription
         }
     }
 }
