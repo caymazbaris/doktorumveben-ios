@@ -400,9 +400,16 @@ struct DVBDoctorRow: View {
                 }
                 .font(.caption)
                 .foregroundColor(.secondary)
+                if doctor.bookingOpen == true {
+                    DVBOnlineRandevuEtiketi()
+                }
             }
         }
         .padding(.vertical, 4)
+        // DVB-000497 — takvimi olmayan hekim web'deki gibi "bir tık sönük" (opaklık .85, doygunluk .5; DVB-000486
+        // `.dvb-sonuk`). Dokunulabilirliği değişmez; bilgi (randevuya açık mı) ayrıca yazıyla da verilir (etiket).
+        .opacity(doctor.bookingOpen == false ? 0.85 : 1)
+        .saturation(doctor.bookingOpen == false ? 0.5 : 1)
     }
 }
 

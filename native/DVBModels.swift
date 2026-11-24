@@ -37,6 +37,10 @@ struct DVBDoctor: Decodable, Identifiable {
     let district: String?
     let experience: Int?
     let distanceKm: Double?
+    /// DVB-000497 — randevuya açık mı (takvimi kurulu üye ya da Takvim Çalışması hekimi; DVB-000486). Sunucu listeyi zaten
+    /// bunlar önde gelecek şekilde sıralar; kapalı hekimin satırı web'deki gibi bir tık sönük çizilir. Eski sunucu göndermez →
+    /// nil → sönük çizilmez. `var` + varsayılan: Decodable yine okur, mevcut kurucu çağrıları bozulmaz (widget de derler).
+    var bookingOpen: Bool? = nil
 
     var id: String { slug }
 
@@ -45,6 +49,7 @@ struct DVBDoctor: Decodable, Identifiable {
         case ratingCount = "rating_count"
         case isVerified = "is_verified"
         case distanceKm = "distance_km"
+        case bookingOpen = "booking_open"
     }
 }
 

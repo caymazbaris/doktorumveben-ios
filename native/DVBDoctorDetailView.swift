@@ -177,11 +177,23 @@ struct DVBDoctorDetailView: View {
         // düşüyordu; Apple'ın 31.07.2026 tarihli 4.2.2 reddi tam bunu tarif ediyor.
         // Talep artık native formda alınıyor (POST /doctors/{slug}/request).
         .sheet(item: $talepKonusu) { konu in
-            DVBRequestView(
-                doctorSlug: doctor.slug,
-                doctorName: detail?.doctor.name ?? doctor.name ?? "Hekim",
-                konu: konu
-            )
+            Group {
+                // DVB-000497 — takvimi kapalı hekimde önce aynı alandaki takvimli uzman önerisi (web DVB-000486); öneri yoksa
+                // sayfa formu kendisi açar. Takvimi açık hekimin fiyat talebinde öneri yok (kendisi randevu verebiliyor).
+                if detail?.doctor.isBookingClosed == true {
+                    DVBTalepOnerisiView(
+                        doctorSlug: doctor.slug,
+                        doctorName: detail?.doctor.name ?? doctor.name ?? "Hekim",
+                        konu: konu
+                    )
+                } else {
+                    DVBRequestView(
+                        doctorSlug: doctor.slug,
+                        doctorName: detail?.doctor.name ?? doctor.name ?? "Hekim",
+                        konu: konu
+                    )
+                }
+            }
             // Sayfalar ortam nesnelerini her iOS sürümünde kendiliğinden almaz; talep formu oturumu (ön-doldurma,
             // jeton) ve "Giriş yap" için kilidi kullanır.
             .environmentObject(session)
