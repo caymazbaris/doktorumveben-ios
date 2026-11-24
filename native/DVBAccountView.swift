@@ -233,6 +233,15 @@ struct DVBAccountView: View {
                             Label("Hasta talepleri", systemImage: "tray.full")
                         }
                     }
+                    // DVB-000495 — Premium özel hattı tanımlı hekim kendi WhatsApp kutusunu görür (DVB-000493). Kutu web panelinde;
+                    // /panel yolu DVBWebOturum köprüsüyle uygulamanın oturumunu taşır, ayrıca giriş istemez.
+                    if hekim.whatsappKutusuAcik {
+                        Button {
+                            webSheet = .init(url: DVBConfig.webBase.appendingPathComponent("panel/whatsapp"))
+                        } label: {
+                            Label("WhatsApp gelen kutusu", systemImage: "message")
+                        }
+                    }
                     if hekim.calismaSaatleriAcik {
                         NavigationLink(destination: DVBHekimCalismaSaatleriView()) {
                             Label("Çalışma saatleri ve izinler", systemImage: "clock")

@@ -57,6 +57,8 @@ struct DVBHekimBilgisi: Codable {
         let secretaries: Bool?
         // DVB-000351 — onam formları ve uzaktan imza (eski sunucuda yok → nil → gösterilmez).
         let consents: Bool?
+        // DVB-000495 — WhatsApp gelen kutusu: web menüsüyle aynı kapı (platformda kapalıyken yalnız Premium özel hatlı hekim).
+        let whatsappInbox: Bool?
 
         enum CodingKeys: String, CodingKey {
             case patients, questions, payments, messages, schedule, services, profile, accounting, invoices, billing
@@ -67,6 +69,7 @@ struct DVBHekimBilgisi: Codable {
             case bookingPage = "booking_page"
             case accountingSetup = "accounting_setup"
             case incomingInvoices = "incoming_invoices"
+            case whatsappInbox = "whatsapp_inbox"
         }
     }
 
@@ -88,6 +91,8 @@ struct DVBHekimBilgisi: Codable {
     var odemeFaturaBilgileriAcik: Bool { features?.billing ?? false }
     /// DVB-000351 — onam formları (hekim menüsü) ve hasta kartındaki "Onamlar".
     var onamlarAcik: Bool { features?.consents ?? false }
+    /// DVB-000495 — Hesabım ▸ Hekim'deki "WhatsApp gelen kutusu" satırı (web sayfası, oturum köprüsüyle).
+    var whatsappKutusuAcik: Bool { features?.whatsappInbox ?? false }
     /// DVB-000345 — "Klinik yönetimi" ekranında en az bir bölüm açık mı.
     var yonetimAcik: Bool {
         guard let f = features else { return false }
