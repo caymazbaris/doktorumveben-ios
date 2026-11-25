@@ -17,15 +17,21 @@ import SwiftUI
 /// `DVBRootView` her zamanki sekmeli arayüzü kurar.
 enum DVBScreenshotMode {
 
-    /// "arama" | "profil" | "randevu" | "hesap"
+    /// "arama" | "profil" | "randevu" | "hesap" | "oneri" | "liste-sonuk"
     ///
     /// Tur 241'de "hesap" eklendi: App Store 4.8 için uygulama içi "Apple ile giriş"
     /// düğmesinin GERÇEKTEN çizildiğini görmenin tek yolu bu — ekipte cihaz yok,
     /// entitlement/kod doğru görünse de düğme çizilmiyorsa yine reddedilirdik.
+    ///
+    /// DVB-000498 — "oneri" ve "liste-sonuk" MAĞAZA karesi DEĞİL, kontrol karesi: DVB-000497'nin talep öncesi
+    /// takvimli uzman önerisi bir düğmenin arkasında (simctl tıklayamaz) ve aramanın ilk ekranındaki hekimlerin
+    /// hepsi takvimli (sönük satır kareye düşmüyor). Betik bunları ayrı klasöre çeker.
     static var ekran: String? { deger("-DVBScreenshot") }
 
     /// Hangi hekim gösterilecek (canlı slug). Verilmezse makul bir varsayılan.
-    static var slug: String { deger("-DVBScreenshotDoctor") ?? "erkan-kulduk-84ix" }
+    /// DVB-000498 — varsayılan takvimi AÇIK bir hekim: eski varsayılan (erkan-kulduk-84ix) DVB-000480'den beri
+    /// randevuya kapalı, randevu karesi "Şu an uygun saat yok" çıkıyordu.
+    static var slug: String { deger("-DVBScreenshotDoctor") ?? "bahar-selda-dogan-suxt" }
 
     /// Argüman adının HEMEN ardından gelen değer. Bir sonraki öğe de "-" ile
     /// başlıyorsa değer verilmemiş sayılır (yanlışlıkla bayrağı değer sanmayalım).
@@ -79,6 +85,18 @@ struct DVBScreenshotHost: View {
                 }
             }
             .navigationViewStyle(.stack)
+        } else if ekran == "oneri" {
+            // DVB-000498 kontrol karesi: takvimi kapalı hekimde "Randevu Talep Et"in açtığı sayfa.
+            // DVBTalepOnerisiView kendi NavigationView'ını kurar; öneri yoksa formu açar (o da karede görülür).
+            if let doctor {
+                DVBTalepOnerisiView(doctorSlug: doctor.slug, doctorName: doctor.name ?? "", konu: .randevu)
+            } else if let hata {
+                DVBStateView(icon: "exclamationmark.triangle", title: "Ekran görüntüsü modu", message: hata)
+            } else {
+                ProgressView()
+            }
+        } else if ekran == "liste-sonuk" {
+            DVBScreenshotSonukListe()
         } else if ekran == "hesap" {
             // Girişsiz hesap ekranı: e-posta/parola + "Apple ile giriş" düğmesi.
             // DVBAccountView kendi NavigationView'ını kurar.
@@ -93,7 +111,7 @@ struct DVBScreenshotHost: View {
     /// tek istekle çekip kart modeline dönüştürüyoruz: arama ucunu isimle sorgulamak
     /// Türkçe karakter + sıralama yüzünden kırılgan olurdu, slug ise kesin.
     private func hekimiGetir() async {
-        guard ekran == "profil" || ekran == "randevu" else { return }
+        guard ekran == "profil" || ekran == "randevu" || ekran == "oneri" else { return }
 
         do {
             let detay: DVBDoctorDetail = try await DVBAPI.shared.get("doctors/\(slug)")
@@ -112,6 +130,43 @@ struct DVBScreenshotHost: View {
             )
         } catch {
             hata = (error as? DVBError)?.errorDescription ?? "Hekim yüklenemedi."
+        }
+    }
+}
+
+/// DVB-000498 kontrol karesi: takvimli hekimler önde + "Online randevu" etiketi, takvimsizler sönük.
+/// Aramanın ilk ekranı yalnız takvimlileri gösteriyor; burada aynı satır bileşeni (DVBDoctorRow) ve aynı uç
+/// (api/v1/doctors) dar bir sorguyla çağrılır: İzmir psikiyatri (canlı 24 Kas: ilk sayfada 3 takvimli + 12 takvimsiz).
+@MainActor
+private struct DVBScreenshotSonukListe: View {
+
+    @State private var hekimler: [DVBDoctor] = []
+    @State private var hata: String?
+
+    var body: some View {
+        NavigationView {
+            List {
+                if let hata {
+                    DVBStateView(icon: "exclamationmark.triangle", title: "Ekran görüntüsü modu", message: hata)
+                } else if hekimler.isEmpty {
+                    ProgressView().frame(maxWidth: .infinity, minHeight: 220)
+                } else {
+                    ForEach(hekimler) { DVBDoctorRow(doctor: $0) }
+                }
+            }
+            .listStyle(.plain)
+            .navigationTitle("Psikiyatri · İzmir")
+        }
+        .navigationViewStyle(.stack)
+        .task { await yukle() }
+    }
+
+    private func yukle() async {
+        do {
+            let sayfa: DVBDoctorPage = try await DVBAPI.shared.get("doctors", query: ["city": "izmir", "specialty": "psikiyatri"])
+            hekimler = sayfa.data
+        } catch {
+            hata = (error as? DVBError)?.errorDescription ?? "Liste yüklenemedi."
         }
     }
 }

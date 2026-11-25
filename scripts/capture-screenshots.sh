@@ -107,28 +107,43 @@ mkdir -p "$OUT"
 echo "Çıktı dizini: $OUT"
 
 # Tek bir kare flaky olursa kalanları da kaybetmeyelim; sonunda toplu kontrol var.
-yakala() {   # $1=dosya  $2=ekran  $3=slug  $4=bekleme
+yakala() {   # $1=dosya  $2=ekran  $3=slug  $4=bekleme  [$5=hedef dizin, varsayılan mağaza takımı $OUT]
+  local hedef="${5:-$OUT}"
   echo "--- $1  (ekran=$2 slug=$3) ---"
   xcrun simctl terminate "$UDID" "$BUNDLE" >/dev/null 2>&1 || true
   xcrun simctl launch "$UDID" "$BUNDLE" -DVBScreenshot "$2" -DVBScreenshotDoctor "$3" || true
   sleep "$4"
-  xcrun simctl io "$UDID" screenshot --type=png "$OUT/$1" || echo "UYARI: $1 alınamadı"
+  xcrun simctl io "$UDID" screenshot --type=png "$hedef/$1" || echo "UYARI: $1 alınamadı"
   # İKİNCİ kare aynı dosyanın üzerine yazar. Sebep: sistem bildirim banner'ı
   # ~5 sn ekranda kalıyor; ilk kareye düşse bile ikincisi temiz çıkar. Veri
   # zaten yüklü olduğu için ikinci karede içerik aynı, sadece banner gider.
   sleep 8
-  xcrun simctl io "$UDID" screenshot --type=png "$OUT/$1" || true
-  ls -la "$OUT/$1" 2>/dev/null || true
+  xcrun simctl io "$UDID" screenshot --type=png "$hedef/$1" || true
+  ls -la "$hedef/$1" 2>/dev/null || true
 }
 
 # Canlı API'den veri çekiliyor: ilk açılış için cömert bekleme.
-yakala 01-hekim-ara.png            arama   erkan-kulduk-84ix  12
-yakala 02-hekim-profili.png        profil  erkan-kulduk-84ix  12
-yakala 03-randevu-takvimi.png      randevu erkan-kulduk-84ix  12
-yakala 04-psikolog-profili.png     profil  ekin-sokmen-ymis   12
-yakala 05-seans-takvimi.png        randevu ekin-sokmen-ymis   12
+# DVB-000498 (25 Kas 2026) — profil/randevu kareleri takvimi AÇIK hekimlerle. Eski hekimler (erkan-kulduk-84ix,
+# ekin-sokmen-ymis) DVB-000480 Takvim Çalışması'ndan beri randevuya kapalı: build #21'de 03/05 "Şu an uygun saat
+# yok", 02/04 "Online takvim kapalı" çıktı. Hekimleri kullanıcı seçti; canlı 25 Kas: 7 günde 68 / 35 boş saat.
+# ⚠ Bu hekimlerden birinin takvimi kapanırsa kare yine boş çıkar — mağazaya yüklemeden önce 03/05'e bakın.
+yakala 01-hekim-ara.png            arama   bahar-selda-dogan-suxt  12
+yakala 02-hekim-profili.png        profil  bahar-selda-dogan-suxt  12
+yakala 03-randevu-takvimi.png      randevu bahar-selda-dogan-suxt  12
+yakala 04-psikolog-profili.png     profil  cise-aker-t6hd          12
+yakala 05-seans-takvimi.png        randevu cise-aker-t6hd          12
 # Tur 241 — 4.8 kanıtı: uygulama içi "Apple ile giriş" düğmesi.
-yakala 06-giris-apple.png          hesap   erkan-kulduk-84ix  10
+yakala 06-giris-apple.png          hesap   bahar-selda-dogan-suxt  10
+
+# DVB-000498 — KONTROL KARELERİ, MAĞAZAYA DEĞİL. Ayrı klasöre yazılır; aşağıdaki 6 kare sayımı ve OCR kapıları
+# yalnız $OUT'a (mağaza takımı) bakar, bu kareler düşse de derleme düşmez (yakala hatayı yutar).
+#   oneri       → takvimi kapalı hekimde (ozlem-bora-qju0, canlı 25 Kas: 4 öneri) "Randevu Talep Et"in açtığı
+#                 takvimli uzman önerisi (DVB-000497). Öneri gelmezse form açılır — karede o görünür.
+#   liste-sonuk → İzmir psikiyatri: takvimliler önde + "Online randevu", takvimsizler sönük.
+KONTROL="$PWD/screenshots/kontrol-magazaya-degil/$SET_ADI"
+mkdir -p "$KONTROL"
+yakala k1-talep-onerisi.png        oneri       ozlem-bora-qju0         12 "$KONTROL"
+yakala k2-liste-sonuk.png          liste-sonuk ozlem-bora-qju0         12 "$KONTROL"
 
 echo "=== Üretilen görüntüler ==="
 ls -la "$OUT"
