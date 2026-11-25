@@ -33,6 +33,12 @@ struct DVBDoctorDetail: Decodable {
         let whatsappPath: String?
         /// DVB-000264 — sunucu söyler (web ile aynı kural). Eski sunucuda alan yok → nil.
         let whatsappAvailable: Bool?
+        /// DVB-000503 — devlet kurumunda çalışan hekim / aile hekimi: randevu ve fiyat talebi ALINMAZ. Uyarı metni ve MHRS
+        /// adresi sunucudan gelir (web ile tek kaynak). Eski sunucuda alanlar yok → nil → eski davranış.
+        let requestClosed: Bool?
+        let requestNoticeTitle: String?
+        let requestNotice: String?
+        let mhrsUrl: String?
 
         struct Location: Decodable {
             let name: String?
@@ -58,6 +64,10 @@ struct DVBDoctorDetail: Decodable {
             case requestPath = "request_path"
             case whatsappPath = "whatsapp_path"
             case whatsappAvailable = "whatsapp_available"
+            case requestClosed = "request_closed"
+            case requestNoticeTitle = "request_notice_title"
+            case requestNotice = "request_notice"
+            case mhrsUrl = "mhrs_url"
         }
     }
 
@@ -96,7 +106,9 @@ struct DVBDoctorDetailView: View {
                         Task { await load() }
                     }
                 } else if let d = detail?.doctor {
-                    if d.isBookingClosed == true {
+                    if d.requestClosed == true {
+                        DVBTalepKapaliKarti(baslik: d.requestNoticeTitle, metin: d.requestNotice)
+                    } else if d.isBookingClosed == true {
                         // DVB-000264 — bu bilgi eskiden alt çubuğun İÇİNDEYDİ ve çubuğu büyütüyordu.
                         Label("Online takvim kapalı — talebinizi bırakın, ekibimiz sizi arayıp randevunuzu oluştursun.",
                               systemImage: "phone.arrow.up.right")
@@ -233,12 +245,32 @@ struct DVBDoctorDetailView: View {
     /// satırda ana eylem, altında YAZILI iki eşit düğme (Fiyat Talep Et + WhatsApp). Açıklama sayfa içeriğine taşındı.
     private var bookingBar: some View {
         let kapali = detail?.doctor.isBookingClosed == true
+        // DVB-000503 — talep alınmayan hekim: talep / fiyat / WhatsApp düğmesi yok; MHRS + aynı alanda online randevu verebilenler.
+        let talepKapali = detail?.doctor.requestClosed == true
         // Eski sunucu bayrağı göndermez → eski davranış: takvimi kapalıda merkezî hat her zaman vardı.
-        let whatsappVar = (detail?.doctor.whatsappAvailable ?? kapali)
+        let whatsappVar = !talepKapali && (detail?.doctor.whatsappAvailable ?? kapali)
             && DVBDoctorDetailView.absoluteWebURL(detail?.doctor.whatsappPath) != nil
 
         return VStack(spacing: 8) {
-            if kapali {
+            if talepKapali && kapali {
+                Button {
+                    if let url = URL(string: detail?.doctor.mhrsUrl ?? DVBTalepKapaliKarti.mhrsYedek) { openURL(url) }
+                } label: {
+                    Label("MHRS'den randevu al", systemImage: "arrow.up.right.square")
+                        .anaDugme(DVBTalepKapaliKarti.renk)
+                }
+                Button {
+                    talepKonusu = .randevu
+                } label: {
+                    Label("Online randevu verebilen uzmanlar", systemImage: "person.2")
+                        .ikincilDugme(DVBTheme.brand)
+                }
+            } else if talepKapali {
+                NavigationLink(destination: DVBBookingView(doctor: doctor)) {
+                    Label("Randevu Al", systemImage: "calendar")
+                        .anaDugme(DVBTheme.brand)
+                }
+            } else if kapali {
                 Button {
                     talepKonusu = .randevu
                 } label: {
@@ -252,6 +284,7 @@ struct DVBDoctorDetailView: View {
                 }
             }
 
+            if !talepKapali {
             HStack(spacing: 8) {
                 Button {
                     talepKonusu = .fiyat
@@ -272,6 +305,7 @@ struct DVBDoctorDetailView: View {
             }
             // Sunucudan bilgi gelmeden fiyat/WhatsApp gösterme: hangi hekim olduğu, takvim durumu henüz bilinmiyor.
             .opacity(detail == nil ? 0 : 1)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
@@ -302,6 +336,35 @@ struct DVBDoctorDetailView: View {
             // DVB-000264 — İPTAL (sekme değişimi/yeniden çizim) hata DEĞİL: ekrandakini koru, "internet yok" deme.
             if let mesaj = DVBError.mesaj(error) { self.error = mesaj }
         }
+    }
+}
+
+/// DVB-000503 — talep alınmayan hekimde (devlet kurumu / aile hekimi) talep düğmelerinin yerindeki uyarı. Metin sunucudan
+/// (web ile tek kaynak: MhrsYonlendirme::talepKapali); gelmezse kısa yedek.
+struct DVBTalepKapaliKarti: View {
+    let baslik: String?
+    let metin: String?
+
+    static let mhrsYedek = "https://mhrs.gov.tr/vatandas/#/"
+    /// Açık zeminde koyu turuncu (okunur), koyu zeminde sistem turuncusu.
+    static let renk = Color(UIColor { iz in
+        iz.userInterfaceStyle == .dark ? .systemOrange : UIColor(red: 0xB4 / 255, green: 0x53 / 255, blue: 0x09 / 255, alpha: 1)
+    })
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(baslik ?? "Bu hekim için randevu ve ücret talebi alınmıyor", systemImage: "exclamationmark.circle")
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(Self.renk)
+            Text(metin ?? "Randevu için MHRS'yi kullanabilir ya da ALO 182'yi arayabilirsiniz.")
+                .font(.footnote)
+                .foregroundColor(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Self.renk.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
