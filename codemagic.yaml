@@ -38,7 +38,7 @@ workflows:
         # (11 Eki'den beri elle yayın bekliyor) → onaylı sürümle aynı numarada yükleme reddedilir (yukarıdaki
         # 1.2 olayı). Yeni derleme takvimli hekim önceliği + talep öncesi öneri (DVB-000497) ve WhatsApp
         # gelen kutusu (DVB-000495) içeriyor. Kullanıcı kararı: 1.5.
-        MARKETING_VERSION: "1.5"
+        MARKETING_VERSION: "1.6"
         # DVB-000109 — doğrudan APNs: prepare-native-ios.mjs aps-environment
         # entitlement'ını yazsın. Ön koşul: App ID'de Push Notifications AÇIK.
         PUSH_APNS: "1"
